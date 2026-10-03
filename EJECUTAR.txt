@@ -2,5 +2,7 @@ GESTOR DE CITAS MEDICAS
 
 1) OPCION RECOMENDADA
 Ejecutar INICIAR.bat
-1) OPCION 2
+2) OPCION 2
 Ejecutar abrir_frontend.bat
+3) OPCION 3
+abrir la carpeta frontend y abrir con navegador INDEX
