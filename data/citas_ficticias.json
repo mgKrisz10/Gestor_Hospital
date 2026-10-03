@@ -1,0 +1,31 @@
+{
+  "horario_laboral": {"inicio": 480, "fin": 840},
+  "doctores": [
+    {
+      "id": "MED001",
+      "nombre": "Dra. Ana Lopez",
+      "especialidad": "Medicina general",
+      "citas": [
+        {"inicio": 540, "duracion": 30},
+        {"inicio": 600, "duracion": 60},
+        {"inicio": 630, "duracion": 30}
+      ]
+    },
+    {
+      "id": "MED002",
+      "nombre": "Dr. Carlos Martinez",
+      "especialidad": "Cardiologia",
+      "citas": [
+        {"inicio": 480, "duracion": 30},
+        {"inicio": 570, "duracion": 30},
+        {"inicio": 720, "duracion": 60}
+      ]
+    },
+    {
+      "id": "MED003",
+      "nombre": "Dra. Sofia Hernandez",
+      "especialidad": "Pediatria",
+      "citas": []
+    }
+  ]
+}

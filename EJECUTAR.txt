@@ -1,0 +1,21 @@
+GESTOR DE CITAS MEDICAS
+
+1) OPCION RECOMENDADA
+- Abre la carpeta en Visual Studio Code.
+- Terminal > Nueva terminal.
+- Ejecuta: python app.py
+- Si Windows no reconoce "python", ejecuta: py app.py
+- El navegador se abre automaticamente.
+
+2) SIN SERVIDOR DE PYTHON
+- Haz doble clic en abrir_frontend.bat
+- Tambien puedes abrir frontend/index.html directamente.
+- El frontend usa datos ficticios y un modo demostracion local.
+
+3) PRUEBAS
+- Terminal: python -m unittest discover -s tests -v
+- En Windows tambien puedes usar ejecutar_pruebas.bat
+
+4) VISUAL STUDIO CODE
+- Usa F5 y selecciona "Gestor de Citas - Web".
+- Para pruebas usa la configuracion "Pruebas - unittest".

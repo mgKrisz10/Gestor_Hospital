@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestor de Citas Médicas</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">+</div><div><strong>MedAgenda</strong><span>Gestor de citas médicas</span></div></div>
+    <div class="status-pill"><span class="dot"></span> Sistema local</div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">ETAPA FUNCIONAL</p>
+        <h1>Encuentra un horario disponible</h1>
+        <p>Selecciona un médico y la duración de la cita. El sistema calcula espacios sin traslapes dentro de su jornada laboral.</p>
+      </div>
+      <div class="hero-card"><span>Horario laboral</span><strong>08:00 - 14:00</strong><small>Datos ficticios para la entrega</small></div>
+    </section>
+
+    <section class="grid">
+      <article class="panel controls">
+        <div class="panel-head"><div><p class="eyebrow">01 · DATOS DE LA CONSULTA</p><h2>Buscar disponibilidad</h2></div></div>
+        <label for="doctor">Médico</label>
+        <select id="doctor"><option value="">Cargando médicos...</option></select>
+        <div id="doctor-info" class="doctor-info hidden"></div>
+        <label for="date">Fecha</label>
+        <input id="date" type="date">
+        <label for="duration">Duración</label>
+        <select id="duration">
+          <option value="15">15 minutos</option>
+          <option value="30" selected>30 minutos</option>
+          <option value="45">45 minutos</option>
+          <option value="60">60 minutos</option>
+          <option value="90">90 minutos</option>
+          <option value="120">120 minutos</option>
+        </select>
+        <button id="search" class="primary"><span>Buscar horarios</span><span>→</span></button>
+        <p id="connection" class="connection">Conectando con Python...</p>
+      </article>
+
+      <article class="panel results">
+        <div class="panel-head result-title"><div><p class="eyebrow">02 · RESULTADO</p><h2 id="result-title">Selecciona tus datos</h2></div><div id="count" class="count hidden"></div></div>
+        <div id="message" class="message">Los horarios disponibles aparecerán aquí.</div>
+        <div id="schedule" class="schedule"></div>
+      </article>
+    </section>
+
+    <section class="panel occupied-panel">
+      <div class="panel-head"><div><p class="eyebrow">03 · AGENDA DEL MÉDICO</p><h2>Citas ocupadas</h2></div><span class="legend occupied">Ocupado</span></div>
+      <div id="occupied" class="occupied-list"><div class="muted">Selecciona un médico para visualizar su agenda.</div></div>
+    </section>
+
+    <section id="functional-note" class="functional-note">
+      <div class="note-icon">λ</div>
+      <div><strong>¿Dónde está la programación funcional?</strong><p>El frontend solicita el cálculo a Python. La lógica usa funciones puras, inmutabilidad, <em>map</em>, <em>filter</em>, <em>reduce</em>, lambdas y composición de funciones.</p></div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
