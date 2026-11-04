@@ -1,8 +1,7 @@
-GESTOR DE CITAS MEDICAS
+SEGUNDO PARCIAL - GESTOR DE CITAS MEDICAS
 
-1) OPCION RECOMENDADA
-Ejecutar INICIAR.bat
-2) OPCION 2
-Ejecutar abrir_frontend.bat
-3) OPCION 3
-abrir la carpeta frontend y abrir con navegador INDEX
+1. Instalar Python 3.10 o posterior.
+2. Abrir la carpeta y ejecutar INICIAR.bat (Windows) o: python app.py
+3. Usar la URL local, normalmente http://127.0.0.1:8000
+4. Para las 23 pruebas: python -m unittest discover -s tests -v
+5. Demo: docs/guion_laboratorio.md

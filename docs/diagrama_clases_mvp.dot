@@ -1,0 +1,21 @@
+digraph MVP {
+  graph [rankdir=TB, bgcolor="white", fontname="Arial", nodesep=.45, ranksep=.7, pad=.25, splines=ortho];
+  node [shape=record, style="rounded,filled", fillcolor="#eff8f5", color="#177d68", fontname="Arial", fontsize=10, margin=".13,.1"];
+  edge [color="#526b74", fontname="Arial", fontsize=9, arrowsize=.65];
+  Service [label="{HospitalService| - db_path: str\l - doctores_path: Path\l|+ listar_doctores()\l+ disponibilidad(doctor, fecha, duracion)\l+ agendar(doctor, fecha, inicio, duracion, paciente)\l+ listar_citas(fecha, doctor)\l+ cancelar(cita_id)\l}", fillcolor="#dcefe8"];
+  Doctor [label="{Doctor| + id: str\l+ nombre: str\l+ especialidad: str\l}"];
+  Paciente [label="{Paciente| + id: int\l+ nombre: str\l+ telefono: str\l}"];
+  CitaMedica [label="{CitaMedica| + id: int\l+ doctor_id: str\l+ paciente_id: int\l+ fecha: str\l+ inicio: int\l+ duracion: int\l+ estado: str\l}"];
+  Handler [label="{Handler|+ do_GET()\l+ do_POST()\l+ enviar()\l}", fillcolor="#e3eef6", color="#567d9a"];
+  Cita [label="{Cita| + inicio: int\l+ duracion: int\l}"];
+  Intervalo [label="{Intervalo| + inicio: int\l+ fin: int\l}"];
+  Result [label="{Exito / Error| + valor / mensaje\l}"];
+  Handler -> Service [label=" solicita ", arrowhead=vee, style=dashed];
+  Service -> Doctor [label=" consulta 1..* ", arrowhead=vee];
+  Service -> CitaMedica [label=" administra 0..* ", arrowhead=vee];
+  CitaMedica -> Doctor [label=" 1 ", arrowhead=vee];
+  CitaMedica -> Paciente [label=" 1 ", arrowhead=vee];
+  Service -> Cita [label=" usa 0..* ", arrowhead=vee, style=dashed];
+  Cita -> Intervalo [label=" convierte ", arrowhead=vee, style=dashed];
+  Service -> Result [label=" usa resultado ", arrowhead=vee, style=dashed];
+}

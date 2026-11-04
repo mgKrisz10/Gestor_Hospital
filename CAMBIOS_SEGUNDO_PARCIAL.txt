@@ -1,0 +1,6 @@
+MVP acotado segundo parcial (noviembre de 2026)
+- Se delimitan tres operaciones evaluables: consultar horarios, agendar sin empalmes, cancelar.
+- Se retira reprogramacion del interfaz, API y HospitalService para mantener la concordancia codigo / UML / documento.
+- Se conserva la busqueda funcional de la primera entrega y el almacenamiento local SQLite.
+- Se añade prueba automatizada para casos validos, limites y errores que puede elegir la profesora.
+- No incluye el informe completo de primer parcial como anexo: algunas funciones alli eran requisitos futuros, no operativos.

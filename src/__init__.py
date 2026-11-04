@@ -1,1 +1,1 @@
-"""Modulo del Gestor de Citas Medicas."""
+# Paquete de lógica del proyecto

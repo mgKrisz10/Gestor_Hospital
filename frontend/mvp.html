@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MedAgenda | MVP del hospital</title>
+  <link rel="stylesheet" href="mvp.css">
+  <script src="mvp.js" defer></script>
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><span class="brand-icon">+</span><div><strong>MedAgenda</strong><small>Gestor de citas médicas</small></div></div>
+    <span class="tag">MVP · SEGUNDO PARCIAL</span>
+  </header>
+  <main class="container">
+    <section class="intro">
+      <div><p class="eyebrow">RECEPCIÓN / AGENDA</p><h1>Control de citas médicas</h1>
+      <p>Consulta los horarios de cada médico, registra al paciente y administra sus citas sin empalmes.</p></div>
+      <div class="hours"><span>Horario laboral</span><strong>08:00 a 14:00</strong><small>Las citas se guardan en SQLite</small></div>
+    </section>
+    <div class="layout">
+      <section class="card form-card">
+        <p class="eyebrow">01 · NUEVA CITA</p><h2>Buscar y reservar</h2>
+        <label for="doctor">Médico</label><select id="doctor" required><option value="">Cargando médicos...</option></select>
+        <label for="date">Fecha</label><input type="date" id="date" required>
+        <label for="duration">Duración de consulta</label>
+        <select id="duration"><option value="15">15 minutos</option><option value="30" selected>30 minutos</option><option value="45">45 minutos</option><option value="60">60 minutos</option></select>
+        <button type="button" id="search" class="button">Buscar horarios libres</button>
+        <div class="chosen">Horario seleccionado: <strong id="chosen">Ninguno</strong></div>
+        <label for="patient">Nombre del paciente</label><input id="patient" maxlength="120" placeholder="Nombre y apellidos" autocomplete="name">
+        <label for="phone">Teléfono (opcional)</label><input id="phone" maxlength="30" placeholder="55 1234 5678" autocomplete="tel">
+        <button type="button" id="book" class="button secondary" disabled>Confirmar cita</button>
+      </section>
+      <section class="card slots-card">
+        <div class="row"><div><p class="eyebrow">02 · DISPONIBILIDAD</p><h2>Horarios para consultar</h2></div><span id="counter" class="counter">—</span></div>
+        <p id="status" class="status" role="status">Elige un médico y fecha para comenzar.</p>
+        <div id="slots" class="slots"></div>
+        <h3>Horarios ocupados</h3><div id="occupied" class="occupied muted">Sin consulta todavía</div>
+      </section>
+    </div>
+    <section class="card agenda-card">
+      <div class="row"><div><p class="eyebrow">03 · AGENDA</p><h2>Citas registradas</h2></div>
+        <button type="button" id="refresh" class="button outline">Actualizar agenda</button></div>
+      <p class="hint">Las citas registradas pueden cancelarse. Al cancelar una cita, su horario queda disponible para una nueva reserva.</p>
+      <div class="table-wrap"><table><thead><tr><th>ID</th><th>Paciente</th><th>Médico</th><th>Fecha</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody id="appointments"><tr><td colspan="7">Cargando citas...</td></tr></tbody></table></div>
+    </section>
+    <p class="footer">Proyecto académico · Paradigmas de Programación · ESCOM-IPN</p>
+  </main>
+</body>
+</html>

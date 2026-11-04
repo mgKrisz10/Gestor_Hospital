@@ -1,26 +1,24 @@
-"""Punto de entrada: python app.py"""
+"""Punto de entrada del demo: python app.py"""
 import socket
 import threading
 import webbrowser
-
 from src.servidor import main
 
-HOST = "127.0.0.1"
-PORT = 8000
+HOST, PORT = '127.0.0.1', 8000
 
-def puerto_disponible(host: str, inicio: int, intentos: int = 20) -> int:
-    for port in range(inicio, inicio + intentos):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+def puerto_disponible(host, inicio, intentos=20):
+    for port in range(inicio, inicio+intentos):
+        with socket.socket() as sock:
             try:
-                sock.bind((host, port))
+                sock.bind((host,port))
                 return port
             except OSError:
                 continue
-    raise OSError("No se encontro un puerto disponible en el rango configurado")
+    raise OSError('No hay puertos libres entre 8000 y 8019')
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     port = puerto_disponible(HOST, PORT)
-    url = f"http://{HOST}:{port}/"
-    threading.Timer(0.8, lambda: webbrowser.open(url)).start()
-    main(HOST, port)
+    threading.Timer(.8, lambda: webbrowser.open(f'http://{HOST}:{port}')).start()
+    main(HOST,port)

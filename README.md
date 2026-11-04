@@ -1,81 +1,59 @@
-# Gestor de Citas Medicas - Etapa Funcional
+# Gestor de Citas Médicas - MVP acotado del segundo parcial
 
-Proyecto de **Paradigmas de Programacion**. La funcionalidad seleccionada para la primera etapa funcional es **busqueda de horarios disponibles de un medico**.
+Materia: Paradigmas de Programación · ESCOM-IPN · grupo 3CV4.
 
-## Lo importante para ejecutar
+## Alcance evaluable (tres operaciones)
 
-No requiere Flask, Django, Node, npm ni ninguna otra libreria externa.
+1. **Consultar horarios libres**: elegir uno de los tres médicos, fecha válida y duración de 15, 30, 45 o 60 minutos. Jornada de 08:00 a 14:00. Se muestran bloques disponibles y citas ocupadas.
+2. **Agendar cita**: elegir uno de esos horarios, indicar nombre del paciente y confirmar. Se guarda en SQLite y aparece en la tabla de citas. No se permiten empalmes para el mismo médico y fecha.
+3. **Cancelar cita**: utilizar el botón Cancelar en una cita programada. La cita queda marcada como cancelada y su horario se libera.
 
-### Opcion 1: desde Visual Studio Code
+La tabla de citas, el catálogo de tres médicos y SQLite son **elementos auxiliares** de esas tres operaciones, no funciones de administración independiente. La primera etapa utilizó datos ficticios de agenda; en el MVP la base de citas empieza vacía y el archivo JSON solo proporciona el catálogo de médicos. Las citas se conservan al cerrar y reiniciar.
 
-1. Abre esta carpeta completa en VS Code.
-2. Abre la terminal.
-3. Ejecuta:
+**Fuera de alcance:** reprogramar, crear/editar médicos, editar pacientes, eliminar físicamente citas, autenticación, roles, historial clínico y notificaciones. No aparecen como funciones del MVP de esta entrega.
 
-```bash
+## Ejecutar
+
+Python 3.10 o superior, sin dependencias externas. Desde la carpeta que contiene `app.py`:
+
+```sh
 python app.py
 ```
 
-El navegador se abre en `http://127.0.0.1:8000`.
+En Windows también funciona `INICIAR.bat`. Abre la dirección local indicada (habitualmente `http://127.0.0.1:8000`). **No abras `frontend/mvp.html` con doble clic**: requiere el servidor Python.
 
-### Opcion 2: Windows sin usar la terminal
+## Pruebas
 
-Haz doble clic en **INICIAR.bat**.
-
-### Pruebas
-
-```bash
+```sh
 python -m unittest discover -s tests -v
 ```
 
-o doble clic en **ejecutar_pruebas.bat**.
+Las pruebas cubren las tres operaciones y casos de error: horario ocupado (total y parcialmente), límites de jornada, fechas inválidas, nombres inválidos y cancelación repetida. En el laboratorio se probarán **tres casos aleatorios dentro de lo que figure en el reporte**, no necesariamente nuestros tres ejemplos.
 
-## Frontend
+## API utilizada por el MVP
 
-La interfaz esta en `frontend/` y se compone de HTML, CSS y JavaScript puro. Permite seleccionar medico, fecha y duracion, consultar la disponibilidad, ver citas ocupadas y seleccionar un horario.
+| Método | Ruta | Operación |
+|---|---|---|
+| GET | `/api/mvp/doctores` | Cargar catálogo |
+| GET | `/api/mvp/disponibilidad?doctor=MED001&fecha=2026-11-09&duracion=30` | Consultar horas libres |
+| GET | `/api/mvp/citas` | Consultar tabla de citas |
+| POST | `/api/mvp/citas` | Crear cita |
+| POST | `/api/mvp/citas/{id}/cancelar` | Cancelar cita |
 
-## Backend
+La interfaz se limita a esos flujos. El cálculo de huecos de `src/gestor_citas.py` se mantiene de la primera entrega.
 
-`app.py` inicia un servidor local con la biblioteca estandar `http.server`. Tambien puede abrirse `frontend/index.html` directamente o con Live Server de VS Code: en ese caso usa un modo demostracion local con los mismos datos ficticios. Para la integracion completa con Python, usa `python app.py`.
+## Restablecer los datos de práctica
 
-El frontend consume:
+Cerrar el servidor y eliminar solo `data/hospital.sqlite3` para volver a una agenda vacía. Al ejecutar de nuevo se recreará. **No borrar** `data/citas_ficticias.json`.
 
-- `GET /api/doctores`
-- `GET /api/disponibilidad?doctor=MED001&duracion=30`
+## Uso exclusivamente académico
 
-La logica funcional se mantiene en `src/gestor_citas.py` y no depende de la interfaz.
+Prototipo local sin autenticación ni condiciones para almacenar datos clínicos reales. Utilizar nombres y teléfonos ficticios.
 
-## Datos ficticios
+## Documentación del segundo parcial
 
-Los medicos y sus citas estan en `data/citas_ficticias.json`. El horario laboral de esta etapa es de 08:00 a 14:00.
+El reporte actualizado es un PDF de 32 páginas que conserva las 25 páginas originales, incorpora una nota de alcance y seis páginas de esta entrega. Se entrega por separado como PDF. El DOCX original del primer parcial permanece en `docs/Reporte_Etapa_Funcional_Gestor_Citas.docx`.
 
-## Programacion funcional aplicada
+El diagrama de clases actualizado se encuentra en `docs/diagrama_clases_mvp.dot` y `docs/diagrama_clases_mvp.svg`. La guía para las pruebas de laboratorio está en `docs/guion_laboratorio.md`.
 
-Se utilizan `@dataclass(frozen=True)`, funciones puras, composicion, `map`, `filter`, `reduce`, lambdas y separacion entre calculo y entrada/salida. Las funciones de negocio reciben datos y retornan nuevos datos sin mutar la entrada.
-
-## Estructura
-
-```text
-gestor_citas_project/
-├── app.py
-├── INICIAR.bat
-├── ejecutar_pruebas.bat
-├── requirements.txt
-├── README.md
-├── data/
-│   └── citas_ficticias.json
-├── frontend/
-│   ├── index.html
-│   ├── styles.css
-│   └── app.js
-├── src/
-│   ├── __init__.py
-│   ├── gestor_citas.py
-│   └── servidor.py
-├── tests/
-│   └── test_gestor_citas.py
-└── docs/
-    ├── Reporte_Etapa_Funcional_Gestor_Citas.docx
-    ├── reporte_etapa_funcional.pdf
-    └── resultado_pruebas.txt
-```
+Para mantener reproducible el MVP, el alcance evaluable se limita a consultar disponibilidad, agendar sin empalmes y cancelar citas. Las demás funcionalidades del primer informe son requisitos previstos para etapas posteriores.
