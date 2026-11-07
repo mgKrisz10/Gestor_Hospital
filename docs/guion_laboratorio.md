@@ -1,36 +1,37 @@
-# Preparación para tres pruebas aleatorias del MVP
+# Ensayo para tres pruebas aleatorias — segundo parcial
 
-**Lo evaluable es lo expresamente declarado en el informe:** consulta de horarios, registro de cita y cancelación. La profesora puede variar el médico, la fecha, la duración, el nombre y las condiciones iniciales.
+La profesora puede elegir cualquier función **incluida como implementada en el reporte**, no solo tres escenarios preparados. Estos casos cubren las variantes que conviene ensayar.
 
-## Prueba de disponibilidad
+## Entrar con los cinco perfiles
 
-1. Iniciar `python app.py`.
-2. Elegir MED001 y una fecha sin reservas (p. ej. 2026-11-09). Duración 30 minutos.
-3. Buscar. Inicialmente deben aparecer 12 bloques en la jornada de 08:00-14:00.
-4. Cambiar a 60 minutos: inicialmente 6 bloques. No hace falta que la prueba use exactamente esa fecha.
+Ejecuta `python app.py`. En la pantalla de inicio, selecciona `admin`, `doctora`, `paciente`, `recepcion` o `consulta`, todos con clave `Demo2026!`. La contraseña errónea debe rechazarse. Cierra sesión antes de cambiar de rol.
 
-## Prueba de alta / empalmes
+## Recepción — consulta / agenda / cancelación
 
-1. Volver a 30 minutos, seleccionar 08:00 y escribir `Paciente de Prueba`.
-2. Confirmar: aparece un ID y la cita se agrega a la tabla.
-3. Buscar de nuevo: 08:00 deja de estar disponible.
-4. La repetición exacta o parcial para el mismo doctor y fecha debe ser rechazada por el servidor. La pantalla oculta los horarios ocupados; puede verificarse el rechazo con `python -m unittest tests.test_mvp -v` o mediante la API.
+Entra como `recepcion`, busca un médico y una fecha sin citas. Prueba duración 30 min (12 espacios en jornada vacía). Selecciona uno, registra un paciente ficticio y comprueba que el horario queda ocupado. Un segundo registro total/parcialmente empalmado debe rechazarse. Cancela el primero y confirma que el intervalo vuelve a estar libre. Prueba fechas distintas y médicos distintos para verificar independencia de agendas.
 
-## Prueba de cancelación
+## Doctor — agenda propia
 
-1. En la tabla, cancelar la cita de la prueba anterior y confirmar la ventana de diálogo.
-2. Verificar que su estado pasa a `cancelada`.
-3. Buscar disponibilidad: 08:00 vuelve a estar disponible. Actualizar la página no revierte la cancelación.
+Entra como `doctora`, vinculada a MED001. Consulta su agenda; no debe ver las citas de MED002 ni poder modificarlas. La API rechaza consultar disponibilidad de MED002 desde este usuario (403).
 
-## Variantes que también deben superar las pruebas
+## Paciente — privacidad
 
-- Dos médicos en la misma fecha y hora pueden agendar por separado.
-- Fechas diferentes pueden compartir la misma hora.
-- No se permiten reservas fuera de 08:00-14:00 o con duración no positiva.
-- Nombre vacío o fecha imposible produce mensaje de error.
-- No se debe crear dos veces una cita exactamente igual para el mismo doctor, fecha y hora.
-- Cancelar por segunda vez no altera el estado ni crea nuevas citas.
+Para preparar citas visibles al usuario `paciente`, desde `recepcion` marca la casilla **Vincular cita con la cuenta paciente de demostración** antes de confirmar. Inicia después como `paciente`. Solo aparece su registro, nunca citas creadas para otros pacientes. Puede buscar horarios pero no registrar/cancelar.
 
-## Preparar una prueba limpia
+## Administrador — registro de médicos
 
-Cierra el servidor y borra `data/hospital.sqlite3`; vuelve a iniciarlo. El catálogo de médicos se recrea y la agenda empieza sin citas. Esta acción es solo para **datos ficticios de prueba**.
+Entra como `admin`; comprueba el panel de resumen, las cinco cuentas y el catálogo. Agrega `MED004`, nombre `Dr. Marco de Prueba`, especialidad `Medicina Interna`. Aparece en la lista de médicos. Un segundo alta con el mismo ID debe rechazarse. También puede registrar y cancelar citas.
+
+## Personal autorizado — lectura limitada
+
+Entra como `consulta`; consulta médicos y horarios libres. No hay tabla de citas ni botones de modificación. Las rutas que contienen datos personales o modificaciones deben devolver 403.
+
+## Ejecutar pruebas automáticas
+
+`python -m unittest discover -s tests -v`
+
+**53 pruebas automatizadas** (la prueba visual completa debe repetirse en la PC de laboratorio). No se ofrecen como implementados: reprogramación, edición/eliminación de cuentas, notificaciones, ausencias del doctor ni expediente médico.
+
+## Datos de prueba
+
+El archivo `data/hospital.sqlite3` almacena lo realizado. Si deseas una demo nueva, cierra Python y elimina solamente ese archivo, que se reconstruye al arrancar. Nunca uses información clínica real.

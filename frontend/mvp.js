@@ -1,103 +1,236 @@
-/* Interfaz MVP: todas las operaciones escriben y consultan el servidor Python. */
+'use strict';
+// Sesiones de demostración: el token no se almacena de manera permanente.
 const $ = id => document.getElementById(id);
-let startSelected = null;
-const toHHMM = n => `${String(Math.floor(n / 60)).padStart(2,'0')}:${String(n%60).padStart(2,'0')}`;
-const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-async function request(path, options = {}) {
+let token = null;
+let usuario = null;
+let seleccionado = null;
+let pacienteDemoId = null;
+const rolNombre = {
+  administrador: 'Administrador', doctor: 'Doctor', paciente: 'Paciente',
+  recepcion: 'Recepción', personal_autorizado: 'Personal autorizado'
+};
+const rolInfo = {
+  administrador: ['Administración del hospital', 'Revisa las citas, consulta las cuentas de prueba y registra nuevos médicos en el catálogo.'],
+  doctor: ['Agenda de mi consultorio', 'Puedes consultar las citas asignadas a tu consultorio. No puedes cambiarlas ni consultar datos de otros médicos.'],
+  paciente: ['Mis citas médicas', 'Solo aparecen las citas asociadas a tu cuenta de paciente.'],
+  recepcion: ['Recepción y agenda', 'Consulta horarios, registra pacientes ficticios y cancela citas, sin empalmes.'],
+  personal_autorizado: ['Consulta de horarios', 'Puedes consultar médicos y disponibilidad, pero no ver información personal ni modificar citas.']
+};
+const hora = t => `${String(Math.floor(t / 60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
+function estado(texto, malo=false) {
+  $('status').textContent = texto;
+  $('status').classList.toggle('bad', malo);
+}
+async function api(path, method='GET', body=null) {
+  const headers = {'Accept':'application/json'};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (body !== null) headers['Content-Type'] = 'application/json';
   let response;
-  try { response = await fetch(path, options); }
-  catch { throw new Error('No hay conexión con el servidor. Ejecuta python app.py.'); }
+  try { response = await fetch(path, {method, headers, body:body === null ? undefined : JSON.stringify(body)}); }
+  catch { throw new Error('No se pudo conectar con Python. Inicia el servidor mediante python app.py.'); }
   let data;
-  try { data = await response.json(); } catch { throw new Error('Respuesta inválida del servidor'); }
-  if (!response.ok || !data.ok) throw new Error(data.error || 'No se pudo completar la operación');
+  try { data = await response.json(); } catch { throw new Error('Respuesta inesperada del servidor'); }
+  if (!response.ok || !data.ok) {
+    if (response.status === 401 && path !== '/api/mvp/auth/login') cerrarSesion(false);
+    throw new Error(data.error || `Error HTTP ${response.status}`);
+  }
   return data;
 }
-function post(path, object) {
-  return request(path, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(object)});
+const post = (path, body={}) => api(path,'POST',body);
+function cerrarSesion(mostrarMensaje=true) {
+  const viejo = token;
+  token = null; usuario = null; seleccionado = null; pacienteDemoId = null;
+  $('dashboard').hidden = true;
+  $('login-screen').hidden = false;
+  $('user-pill').hidden = true;
+  $('logout').hidden = true;
+  $('password').value = '';
+  $('login-error').hidden = true;
+  if (mostrarMensaje && viejo) fetch('/api/mvp/auth/logout',{method:'POST', headers:{Authorization:`Bearer ${viejo}`,'Content-Type':'application/json'},body:'{}'}).catch(()=>{});
 }
-function status(msg, kind = '') { $('status').className = `status ${kind}`; $('status').textContent = msg; }
-function resetChoice() { startSelected = null; $('chosen').textContent = 'Ninguno'; $('book').disabled = true; }
-
-async function loadDoctors() {
-  const data = await request('/api/mvp/doctores');
-  $('doctor').replaceChildren(new Option('Selecciona un médico', ''),
-    ...data.doctores.map(d => new Option(`${d.nombre} · ${d.especialidad}`, d.id)));
-}
-async function availability() {
-  resetChoice();
-  const doctor = $('doctor').value, date = $('date').value, dur = Number($('duration').value);
-  if (!doctor || !date) { status('Selecciona un médico y una fecha.', 'bad'); return; }
+async function iniciarSesion(event) {
+  event.preventDefault();
+  $('login-error').hidden = true;
+  $('login-button').disabled = true;
   try {
-    const qs = new URLSearchParams({doctor, fecha:date, duracion:String(dur)});
-    const data = await request(`/api/mvp/disponibilidad?${qs}`);
+    const data = await post('/api/mvp/auth/login',{usuario:$('username').value,password:$('password').value});
+    token = data.token; usuario = data.usuario;
+    $('password').value = '';
+    $('login-screen').hidden = true;
+    $('dashboard').hidden = false;
+    $('logout').hidden = false;
+    $('user-pill').hidden = false;
+    $('user-pill').textContent = `${usuario.nombre} · ${rolNombre[usuario.rol]}`;
+    $('dashboard-heading').textContent = rolInfo[usuario.rol][0];
+    $('dashboard-description').textContent = rolInfo[usuario.rol][1];
+    $('dashboard-eyebrow').textContent = `PERFIL · ${rolNombre[usuario.rol].toUpperCase()}`;
+    $('role-note').textContent = `Acceso activo: ${rolNombre[usuario.rol]} · Los permisos se validan en el servidor, no solo en esta pantalla.`;
+    const puedeGestionar = ['administrador','recepcion'].includes(usuario.rol);
+    const puedeConsultar = true;
+    $('availability-area').hidden = !puedeConsultar;
+    $('booking-form').hidden = !puedeGestionar;
+    $('agenda-area').hidden = usuario.rol === 'personal_autorizado';
+    $('admin-area').hidden = usuario.rol !== 'administrador';
+    $('agenda-heading').textContent = usuario.rol === 'doctor' ? 'Mi agenda médica' : usuario.rol === 'paciente' ? 'Mis citas' : 'Citas registradas';
+    $('agenda-hint').textContent = usuario.rol === 'doctor' ? 'Se muestran únicamente las citas de tu consultorio.' : usuario.rol === 'paciente' ? 'Solo aparecen las citas vinculadas a tu cuenta de prueba.' : 'Las citas programadas pueden cancelarse desde este perfil.';
+    $('action-head').hidden = !puedeGestionar;
+    $('doctor').disabled = usuario.rol === 'doctor';
+    resetSeleccion();
+    estado('Has iniciado sesión correctamente.');
+    if (puedeConsultar) await cargarDoctores();
+    if (!['personal_autorizado'].includes(usuario.rol)) await cargarAgenda();
+    if (usuario.rol === 'administrador') await cargarAdministrador();
+    if (puedeGestionar) await cargarPacienteDemo();
+  } catch (e) {
+    if (token) estado(e.message, true);
+    else { $('login-error').textContent = e.message; $('login-error').hidden = false; }
+  } finally { $('login-button').disabled = false; }
+}
+async function cargarDoctores() {
+  const data = await api('/api/mvp/doctores');
+  const prev = $('doctor').value;
+  $('doctor').replaceChildren(...data.doctores.map(d=>{
+    const opt=document.createElement('option'); opt.value=d.id;
+    opt.textContent=`${d.nombre} — ${d.especialidad}`;return opt;
+  }));
+  if (usuario.rol === 'doctor') $('doctor').value = usuario.doctor_id;
+  else if (data.doctores.some(d=>d.id===prev)) $('doctor').value = prev;
+  resetSeleccion();
+}
+function resetSeleccion() {
+  seleccionado = null;
+  $('chosen').textContent = 'Ninguna';
+  $('book').disabled = true;
+  $('slots').replaceChildren();
+  const vacio=document.createElement('p'); vacio.className='empty'; vacio.textContent='Presiona «Buscar espacios libres» para consultar.';
+  $('slots').append(vacio);
+  $('occupied').textContent = 'Sin consulta todavía';
+  $('counter').textContent = '—';
+}
+async function consultar() {
+  resetSeleccion();
+  if (!$('date').value || !$('doctor').value) {estado('Selecciona un médico y una fecha.',true);return;}
+  const qs=new URLSearchParams({doctor:$('doctor').value,fecha:$('date').value,duracion:$('duration').value});
+  try {
+    const data = await api(`/api/mvp/disponibilidad?${qs}`);
     $('counter').textContent = `${data.intervalos.length} libres`;
-    $('slots').replaceChildren(...data.intervalos.map(i => {
-      const button = document.createElement('button'); button.className = 'slot';
-      button.type = 'button'; button.setAttribute('aria-pressed','false');
-      const s = document.createElement('strong'), sub = document.createElement('small');
-      s.textContent = toHHMM(i.inicio); sub.textContent = `hasta ${toHHMM(i.fin)}`;
-      button.append(s,sub);
-      button.addEventListener('click', () => {
-        document.querySelectorAll('.slot').forEach(b => b.setAttribute('aria-pressed','false'));
-        button.setAttribute('aria-pressed','true'); startSelected = i.inicio;
-        $('chosen').textContent = `${toHHMM(i.inicio)} - ${toHHMM(i.fin)}`;
+    const puedeGestionar=['recepcion','administrador'].includes(usuario.rol);
+    const botones = data.intervalos.map(intervalo => {
+      const b=document.createElement('button');b.type='button';b.className='slot';
+      if(!puedeGestionar) b.classList.add('readonly');
+      b.setAttribute('aria-pressed','false');
+      const strong=document.createElement('strong');strong.textContent=hora(intervalo.inicio);
+      const small=document.createElement('small');small.textContent=`hasta ${hora(intervalo.fin)}`;
+      b.append(strong,small);
+      if(puedeGestionar) b.onclick=()=>{
+        seleccionado=intervalo.inicio;
+        document.querySelectorAll('#slots .slot').forEach(btn=>btn.setAttribute('aria-pressed','false'));
+        b.setAttribute('aria-pressed','true');
+        $('chosen').textContent = `${hora(intervalo.inicio)} — ${hora(intervalo.fin)}`;
         $('book').disabled = false;
-      }); return button;
-    }));
-    $('occupied').replaceChildren(...data.citas_ocupadas.map(i => {
-      const span = document.createElement('span'); span.textContent = `${toHHMM(i.inicio)} - ${toHHMM(i.fin)}`; return span;
-    }));
-    if (!data.citas_ocupadas.length) $('occupied').textContent = 'Sin citas ocupadas para esta fecha.';
-    if (!data.intervalos.length) $('slots').textContent = 'Sin horarios disponibles de esta duración.';
-    status(`Disponibilidad actualizada para ${date}.`, 'good');
-  } catch (err) { $('slots').textContent=''; $('occupied').textContent=''; status(err.message,'bad'); }
+      };
+      else b.disabled=true;
+      return b;
+    });
+    $('slots').replaceChildren(...botones);
+    if(!botones.length) $('slots').textContent='Sin espacios completos de esta duración.';
+    const ocupados = data.citas_ocupadas.map(c=>{
+      const s=document.createElement('span');s.textContent=`${hora(c.inicio)} — ${hora(c.fin)}`;return s;
+    });
+    $('occupied').replaceChildren(...ocupados);
+    if(!ocupados.length) $('occupied').textContent='No hay citas ocupadas para este médico y fecha.';
+    estado(`Consulta actualizada: ${$('date').value}.`);
+  } catch(e) {estado(e.message,true);}
 }
-async function book() {
-  if (startSelected === null) return;
+async function cargarPacienteDemo() {
+  const r=await api('/api/mvp/paciente-demo');
+  pacienteDemoId=r.paciente.id;
+}
+function alternarPacienteDemo() {
+  const on=$('demo-patient').checked;
+  $('patient').disabled=on;
+  $('phone').disabled=on;
+  if(on) {$('patient').value='Paciente Demo'; $('phone').value='';}
+  else {$('patient').value=''; $('phone').value='';}
+}
+async function reservar() {
+  if(seleccionado===null) return;
+  $('book').disabled=true;
   try {
-    const obj = {doctor_id:$('doctor').value, fecha:$('date').value, inicio:startSelected,
-      duracion:Number($('duration').value), paciente_nombre:$('patient').value,
-      paciente_telefono:$('phone').value};
-    const data = await post('/api/mvp/citas',obj);
-    status(`Cita #${data.id} registrada correctamente.`, 'good');
-    $('patient').value = ''; $('phone').value = '';
-    await refreshAgenda(); await availability();
-    status(`Cita #${data.id} guardada. El horario ya aparece como ocupado.`, 'good');
-  } catch (err) { status(err.message,'bad'); await refreshAgenda(); }
+    const data={doctor_id:$('doctor').value,fecha:$('date').value,
+      inicio:seleccionado,duracion:Number($('duration').value),
+      paciente_nombre:$('patient').value,paciente_telefono:$('phone').value};
+    if($('demo-patient').checked) data.paciente_id=pacienteDemoId;
+    const respuesta=await post('/api/mvp/citas',data);
+    $('demo-patient').checked=false;alternarPacienteDemo();
+    await cargarAgenda();await consultar();
+    estado(`Cita #${respuesta.id} guardada correctamente. El horario ahora está ocupado.`);
+    if(usuario.rol==='administrador')await cargarAdministrador();
+  } catch(e){estado(e.message,true);await consultar();} finally {$('book').disabled=seleccionado===null;}
 }
-async function refreshAgenda() {
+async function cargarAgenda() {
+  if(!usuario || usuario.rol==='personal_autorizado')return;
   try {
-    const data = await request('/api/mvp/citas');
-    const rows = data.citas;
-    $('appointments').replaceChildren(...rows.map(c => {
-      const tr = document.createElement('tr');
-      for (const content of [c.id,c.paciente_nombre,c.doctor_nombre,c.fecha,
-          `${toHHMM(c.inicio)} - ${toHHMM(c.inicio+c.duracion)}`]) {
-        const td = document.createElement('td'); td.textContent = content; tr.append(td);
-      }
-      const stateTd = document.createElement('td'), span = document.createElement('span');
-      span.className = `state ${c.estado}`; span.textContent = c.estado; stateTd.append(span); tr.append(stateTd);
-      const actions = document.createElement('td');
-      if (c.estado === 'programada') {
-        const cancel = document.createElement('button'); cancel.className='small-btn cancel'; cancel.textContent='Cancelar';
-        cancel.addEventListener('click', async () => {
-          if (!confirm(`¿Cancelar la cita #${c.id}?`)) return;
-          try { await post(`/api/mvp/citas/${c.id}/cancelar`,{}); await refreshAgenda(); await availability();
-            status(`Cita #${c.id} cancelada. Su horario vuelve a estar disponible.`, 'good'); }
-          catch (err) { status(err.message,'bad'); }
-        });
-        actions.append(cancel);
-      } else actions.textContent='—';
-      tr.append(actions); return tr;
-    }));
-    if (!rows.length) $('appointments').innerHTML = '<tr><td colspan="7">No hay citas registradas. Agenda una desde el formulario.</td></tr>';
-  } catch (err) { $('appointments').innerHTML='<tr><td colspan="7">Error al cargar la agenda. Inicia Python.</td></tr>'; status(err.message,'bad'); }
+    const data=await api('/api/mvp/citas');
+    const puedeGestionar=['administrador','recepcion'].includes(usuario.rol);
+    const rows=data.citas.map(c=>{
+      const tr=document.createElement('tr');
+      const values=[`#${c.id}`,c.paciente_nombre,c.doctor_nombre,c.fecha,`${hora(c.inicio)} — ${hora(c.inicio+c.duracion)}`];
+      for(const val of values){const td=document.createElement('td');td.textContent=String(val);tr.append(td);}
+      const td=document.createElement('td');const span=document.createElement('span');span.className=`state ${c.estado}`;span.textContent=c.estado;td.append(span);tr.append(td);
+      if(puedeGestionar){const act=document.createElement('td');
+        if(c.estado==='programada') {const btn=document.createElement('button');btn.type='button';btn.className='small-btn';btn.textContent='Cancelar';
+          btn.onclick=async()=>{if(!confirm(`¿Cancelar la cita #${c.id}?`))return;
+            try{await post(`/api/mvp/citas/${c.id}/cancelar`,{});await cargarAgenda();
+              if(!$('availability-area').hidden && $('date').value===c.fecha)await consultar();
+              if(usuario.rol==='administrador')await cargarAdministrador();
+              estado(`Se canceló la cita #${c.id}; el horario quedó libre.`);
+            }catch(e){estado(e.message,true);}};act.append(btn);
+        } else {act.textContent='—';} tr.append(act);}
+      return tr;
+    });
+    $('appointments').replaceChildren(...rows);
+    if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=puedeGestionar?7:6;td.textContent='No hay citas para mostrar con este perfil.';tr.append(td);$('appointments').append(tr);}
+  } catch(e){estado(e.message,true);}
 }
-['doctor','date','duration'].forEach(id => $(id).addEventListener('change',resetChoice));
-$('search').addEventListener('click',availability);
-$('book').addEventListener('click',book);
-$('refresh').addEventListener('click',refreshAgenda);
-const today = new Date(); today.setMinutes(today.getMinutes()-today.getTimezoneOffset());
-$('date').value = today.toISOString().slice(0,10);
-(async () => { try { await loadDoctors(); await refreshAgenda(); } catch (err) { status(err.message,'bad'); } })();
+async function cargarAdministrador() {
+  if(usuario.rol!=='administrador')return;
+  try {
+    const [r,u]=await Promise.all([api('/api/mvp/resumen'),api('/api/mvp/usuarios')]);
+    const labels={doctores:'Médicos',pacientes:'Pacientes',citas_programadas:'Citas programadas',citas_canceladas:'Citas canceladas'};
+    $('metrics').replaceChildren(...Object.entries(labels).map(([key,label])=>{
+      const div=document.createElement('div'),strong=document.createElement('strong'),small=document.createElement('small');
+      strong.textContent=String(r.resumen[key]);small.textContent=label;div.append(strong,small);return div;
+    }));
+    $('users').replaceChildren(...u.usuarios.map(person=>{
+      const tr=document.createElement('tr');
+      [person.usuario,person.nombre,rolNombre[person.rol],person.activo?'Activo':'Inactivo'].forEach(t=>{
+        const td=document.createElement('td');td.textContent=t;tr.append(td);
+      });return tr;
+    }));
+  } catch(e){estado(e.message,true);}
+}
+async function registrarDoctor(event) {
+  event.preventDefault();
+  try {
+    const r=await post('/api/mvp/doctores',{id:$('new-id').value,nombre:$('new-name').value,especialidad:$('new-specialty').value});
+    $('new-doctor-form').reset();await cargarDoctores();await cargarAdministrador();
+    estado(`Se agregó ${r.doctor.nombre} (${r.doctor.id}) al catálogo.`);
+  } catch(e) {estado(e.message,true);}
+}
+$('login-form').addEventListener('submit',iniciarSesion);
+$('demo-grid').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  $('username').value=b.dataset.demo;
+  $('password').value='Demo2026!';
+  $('username').focus();
+  $('login-error').hidden=true;
+}));
+$('logout').addEventListener('click',()=>cerrarSesion());
+['date','doctor','duration'].forEach(id=>$(id).addEventListener('change',resetSeleccion));
+$('search').addEventListener('click',consultar);
+$('demo-patient').addEventListener('change',alternarPacienteDemo);
+$('book').addEventListener('click',reservar);
+$('refresh').addEventListener('click',cargarAgenda);
+$('new-doctor-form').addEventListener('submit',registrarDoctor);
+const hoy=new Date();hoy.setMinutes(hoy.getMinutes()-hoy.getTimezoneOffset());
+$('date').value=hoy.toISOString().slice(0,10);

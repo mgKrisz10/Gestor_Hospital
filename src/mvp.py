@@ -184,14 +184,38 @@ class HospitalService:
             raise ReglaNegocioError('La cita ya está cancelada')
         return row
 
-    def agendar(self, doctor_id, fecha, inicio, duracion, paciente_nombre, paciente_telefono=''):
+    def registrar_doctor(self, doctor_id, nombre, especialidad):
+        doctor_id = str(doctor_id or '').strip().upper()
+        nombre = str(nombre or '').strip()
+        especialidad = str(especialidad or '').strip()
+        if not (3 <= len(doctor_id) <= 12) or not doctor_id.isalnum():
+            raise ReglaNegocioError('ID del médico: 3-12 letras o números')
+        if not (3 <= len(nombre) <= 120) or not (3 <= len(especialidad) <= 100):
+            raise ReglaNegocioError('Nombre y especialidad deben tener al menos 3 caracteres')
+        with self._conexion() as con:
+            try:
+                con.execute('INSERT INTO doctores VALUES (?,?,?)', (doctor_id, nombre, especialidad))
+            except sqlite3.IntegrityError as exc:
+                raise ReglaNegocioError('Ya existe un médico con ese ID') from exc
+        return {'ok': True, 'doctor': asdict(Doctor(doctor_id, nombre, especialidad))}
+
+    def resumen(self):
+        with self._conexion() as con:
+            return {'doctores': con.execute('SELECT COUNT(*) FROM doctores').fetchone()[0],
+                    'pacientes': con.execute('SELECT COUNT(*) FROM pacientes').fetchone()[0],
+                    'citas_programadas': con.execute("SELECT COUNT(*) FROM citas WHERE estado='programada'").fetchone()[0],
+                    'citas_canceladas': con.execute("SELECT COUNT(*) FROM citas WHERE estado='cancelada'").fetchone()[0]}
+
+    def agendar(self, doctor_id, fecha, inicio, duracion, paciente_nombre='', paciente_telefono='', paciente_id=None):
         fecha = self._fecha(fecha)
         inicio = self._entero(inicio, 'Inicio')
         duracion = self._entero(duracion, 'Duración')
         self._validar_horario(inicio, duracion)
         nombre = str(paciente_nombre or '').strip()
         telefono = str(paciente_telefono or '').strip()
-        if len(nombre) < 2 or len(nombre) > 120:
+        if paciente_id is not None:
+            paciente_id = self._entero(paciente_id, 'Paciente')
+        if paciente_id is None and (len(nombre) < 2 or len(nombre) > 120):
             raise ReglaNegocioError('Escribe el nombre del paciente (2-120 caracteres)')
         if len(telefono) > 30:
             raise ReglaNegocioError('El teléfono supera los 30 caracteres')
@@ -201,8 +225,11 @@ class HospitalService:
                 self._doctor_existe(con, doctor_id)
                 if self._conflicto(self._ocupadas(con, doctor_id, fecha), inicio, duracion):
                     raise ReglaNegocioError('Horario ocupado: existe otra cita para ese médico')
-                paciente_id = con.execute('INSERT INTO pacientes(nombre,telefono) VALUES (?,?)',
-                                          (nombre, telefono)).lastrowid
+                if paciente_id is None:
+                    paciente_id = con.execute('INSERT INTO pacientes(nombre,telefono) VALUES (?,?)',
+                                              (nombre, telefono)).lastrowid
+                elif con.execute('SELECT 1 FROM pacientes WHERE id=?', (paciente_id,)).fetchone() is None:
+                    raise ReglaNegocioError('Paciente no encontrado')
                 cita_id = con.execute('''INSERT INTO citas(doctor_id,paciente_id,fecha,inicio,duracion)
                                          VALUES (?,?,?,?,?)''',
                                       (doctor_id, paciente_id, fecha, inicio, duracion)).lastrowid

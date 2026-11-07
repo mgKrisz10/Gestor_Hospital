@@ -1,6 +1,19 @@
-MVP acotado segundo parcial (noviembre de 2026)
-- Se delimitan tres operaciones evaluables: consultar horarios, agendar sin empalmes, cancelar.
-- Se retira reprogramacion del interfaz, API y HospitalService para mantener la concordancia codigo / UML / documento.
-- Se conserva la busqueda funcional de la primera entrega y el almacenamiento local SQLite.
-- Se añade prueba automatizada para casos validos, limites y errores que puede elegir la profesora.
-- No incluye el informe completo de primer parcial como anexo: algunas funciones alli eran requisitos futuros, no operativos.
+SEGUNDO PARCIAL — ACTUALIZACIÓN CON CINCO PERFILES (07/11/2026)
+
+Se conserva el cálculo funcional de disponibilidad del primer parcial.
+
+NOVEDADES
+- Pantalla de inicio/cierre de sesión; cinco cuentas de demostración.
+- Contraseñas derivadas PBKDF2 y tokens de sesión temporales.
+- Permisos por rol comprobados por el servidor HTTP.
+- Recepción/admin: agendar y cancelar citas con persistencia SQLite.
+- Doctor: agenda propia (MED001); paciente: solo sus citas vinculadas.
+- Personal autorizado: lectura de horarios sin datos de pacientes.
+- Admin: registrar médicos, consultar usuarios y resumen.
+- UML y PDF actualizados a partir del reporte original de 25 páginas.
+- 53 pruebas automáticas de lógica, API y permisos pasadas localmente.
+
+LIMITACIONES
+Solo para laboratorios con datos ficticios; sin seguridad clínica de producción.
+Fuera de alcance: reprogramar, administrar completamente usuarios, notificaciones,
+aviso de inasistencia de un doctor y expedientes médicos.

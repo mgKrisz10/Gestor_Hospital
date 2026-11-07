@@ -1,0 +1,6 @@
+RESUMEN DE PRUEBAS — MVP CON CINCO PERFILES
+
+53 pruebas ejecutadas localmente y 53 aprobadas.
+Comando: python -m unittest discover -s tests -v
+Incluye pruebas de disponibilidad del primer parcial, SQLite, empalmes, autenticación, roles, filtrado de datos y HTTP.
+Prueba visual: se validó la navegación de la interfaz contra datos simulados; el flujo navegador + servidor requiere comprobación final en el laboratorio.

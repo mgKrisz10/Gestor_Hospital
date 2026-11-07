@@ -1,51 +1,96 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MedAgenda | MVP del hospital</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>MedAgenda | Hospital · Segundo parcial</title>
   <link rel="stylesheet" href="mvp.css">
   <script src="mvp.js" defer></script>
 </head>
 <body>
   <header class="header">
-    <div class="brand"><span class="brand-icon">+</span><div><strong>MedAgenda</strong><small>Gestor de citas médicas</small></div></div>
-    <span class="tag">MVP · SEGUNDO PARCIAL</span>
+    <a class="brand" href="/" aria-label="MedAgenda, inicio"><span class="brand-mark">+</span><span><strong>MedAgenda</strong><small>Gestión de citas · ESCOM</small></span></a>
+    <div class="header-right"><span class="semester">PARADIGMAS · SEGUNDO PARCIAL</span><span class="user-pill" id="user-pill" hidden></span><button type="button" id="logout" class="logout" hidden>Cerrar sesión</button></div>
   </header>
-  <main class="container">
-    <section class="intro">
-      <div><p class="eyebrow">RECEPCIÓN / AGENDA</p><h1>Control de citas médicas</h1>
-      <p>Consulta los horarios de cada médico, registra al paciente y administra sus citas sin empalmes.</p></div>
-      <div class="hours"><span>Horario laboral</span><strong>08:00 a 14:00</strong><small>Las citas se guardan en SQLite</small></div>
+
+  <main id="login-screen" class="login-layout">
+    <section class="welcome">
+      <div class="eyebrow light">SISTEMA DE DEMOSTRACIÓN · MVP</div>
+      <div class="welcome-mark">✚</div>
+      <h1>Un hospital.<br><em>Cinco perfiles.</em><br>Una agenda.</h1>
+      <p>Controla la disponibilidad de médicos, registra citas y consulta información según los permisos asignados a cada usuario.</p>
+      <div class="welcome-strip"><span>01 · Autenticación</span><span>02 · Agenda</span><span>03 · Roles</span></div>
+      <small>Prototipo educativo. No ingresar información clínica real.</small>
     </section>
-    <div class="layout">
-      <section class="card form-card">
-        <p class="eyebrow">01 · NUEVA CITA</p><h2>Buscar y reservar</h2>
-        <label for="doctor">Médico</label><select id="doctor" required><option value="">Cargando médicos...</option></select>
-        <label for="date">Fecha</label><input type="date" id="date" required>
-        <label for="duration">Duración de consulta</label>
-        <select id="duration"><option value="15">15 minutos</option><option value="30" selected>30 minutos</option><option value="45">45 minutos</option><option value="60">60 minutos</option></select>
-        <button type="button" id="search" class="button">Buscar horarios libres</button>
-        <div class="chosen">Horario seleccionado: <strong id="chosen">Ninguno</strong></div>
-        <label for="patient">Nombre del paciente</label><input id="patient" maxlength="120" placeholder="Nombre y apellidos" autocomplete="name">
-        <label for="phone">Teléfono (opcional)</label><input id="phone" maxlength="30" placeholder="55 1234 5678" autocomplete="tel">
-        <button type="button" id="book" class="button secondary" disabled>Confirmar cita</button>
-      </section>
-      <section class="card slots-card">
-        <div class="row"><div><p class="eyebrow">02 · DISPONIBILIDAD</p><h2>Horarios para consultar</h2></div><span id="counter" class="counter">—</span></div>
-        <p id="status" class="status" role="status">Elige un médico y fecha para comenzar.</p>
-        <div id="slots" class="slots"></div>
-        <h3>Horarios ocupados</h3><div id="occupied" class="occupied muted">Sin consulta todavía</div>
-      </section>
-    </div>
-    <section class="card agenda-card">
-      <div class="row"><div><p class="eyebrow">03 · AGENDA</p><h2>Citas registradas</h2></div>
-        <button type="button" id="refresh" class="button outline">Actualizar agenda</button></div>
-      <p class="hint">Las citas registradas pueden cancelarse. Al cancelar una cita, su horario queda disponible para una nueva reserva.</p>
-      <div class="table-wrap"><table><thead><tr><th>ID</th><th>Paciente</th><th>Médico</th><th>Fecha</th><th>Hora</th><th>Estado</th><th>Acciones</th></tr></thead>
-      <tbody id="appointments"><tr><td colspan="7">Cargando citas...</td></tr></tbody></table></div>
+    <section class="login-panel">
+      <p class="eyebrow">ACCESO AL SISTEMA</p>
+      <h2>Iniciar sesión</h2>
+      <p class="muted">Utiliza tus credenciales de demostración para entrar con un rol específico.</p>
+      <form id="login-form" autocomplete="off">
+        <label for="username">Usuario</label><input id="username" name="username" required autocomplete="username" placeholder="Escribe tu usuario" maxlength="60">
+        <label for="password">Contraseña</label><input id="password" type="password" name="password" required autocomplete="current-password" placeholder="Tu contraseña">
+        <button class="button primary full" type="submit" id="login-button">Entrar al sistema <span>→</span></button>
+      </form>
+      <p id="login-error" role="alert" class="alert" hidden></p>
+      <div class="demo-guide"><div class="row"><strong>Accesos para el laboratorio</strong><span class="small-label">Selecciona un rol</span></div>
+        <div class="demo-grid" id="demo-grid">
+          <button type="button" data-demo="admin"><span class="demo-avatar">A</span><span>Administrador</span></button>
+          <button type="button" data-demo="doctora"><span class="demo-avatar">D</span><span>Doctor</span></button>
+          <button type="button" data-demo="paciente"><span class="demo-avatar">P</span><span>Paciente</span></button>
+          <button type="button" data-demo="recepcion"><span class="demo-avatar">R</span><span>Recepción</span></button>
+          <button type="button" data-demo="consulta"><span class="demo-avatar">C</span><span>Personal autorizado</span></button>
+        </div>
+        <p class="hint">Estas cuentas son ficticias. Contraseña de demostración: <code>Demo2026!</code></p>
+      </div>
     </section>
-    <p class="footer">Proyecto académico · Paradigmas de Programación · ESCOM-IPN</p>
+  </main>
+
+  <main id="dashboard" class="container" hidden>
+    <section class="dashboard-title"><div><p class="eyebrow" id="dashboard-eyebrow">MI ESPACIO</p><h1 id="dashboard-heading">Panel principal</h1><p id="dashboard-description" class="muted"></p></div><div class="hours"><small>Jornada de consultas</small><strong>08:00 — 14:00</strong><span>Persistencia SQLite · Datos de prueba</span></div></section>
+    <nav class="role-nav" aria-label="Secciones disponibles"><span id="role-note">Acceso según rol</span></nav>
+    <p class="status" id="status" role="status">Sesión iniciada.</p>
+
+    <section class="workspace" id="availability-area" hidden>
+      <article class="card controls"><div class="card-heading"><span class="step">01</span><div><p class="eyebrow">CONSULTA</p><h2>Disponibilidad médica</h2></div></div>
+        <label for="doctor">Médico</label><select id="doctor"><option value="">Seleccionar médico</option></select>
+        <label for="date">Fecha de la consulta</label><input id="date" type="date">
+        <label for="duration">Duración</label><select id="duration"><option value="15">15 minutos</option><option value="30" selected>30 minutos</option><option value="45">45 minutos</option><option value="60">60 minutos</option></select>
+        <button id="search" type="button" class="button primary full">Buscar espacios libres <span>→</span></button>
+        <div id="booking-form" hidden>
+          <div class="form-divider"></div>
+          <p class="eyebrow">RESERVAR HORARIO</p>
+          <div class="chosen">Selección actual <strong id="chosen">Ninguna</strong></div>
+          <label class="checkline" for="demo-patient"><input id="demo-patient" type="checkbox"> Vincular cita con la cuenta «paciente» de demostración</label>
+          <label for="patient">Nombre del paciente</label><input id="patient" maxlength="120" placeholder="Nombre y apellidos" autocomplete="off">
+          <label for="phone">Teléfono (opcional)</label><input id="phone" maxlength="30" placeholder="Teléfono ficticio" autocomplete="off">
+          <button id="book" type="button" class="button accent full" disabled>Confirmar cita</button>
+        </div>
+      </article>
+      <article class="card schedules"><div class="row space"><div><p class="eyebrow">RESULTADOS</p><h2>Horarios disponibles</h2></div><span id="counter" class="counter">—</span></div>
+        <p class="hint">El sistema calcula intervalos libres sin empalmes con otras citas del mismo médico y fecha.</p>
+        <div class="slot-grid" id="slots"><p class="empty">Consulta un médico y una fecha para ver los espacios.</p></div>
+        <div class="booked-heading"><h3>Horarios ocupados</h3><span class="small-label">Solo intervalos, sin información personal</span></div>
+        <div class="occupied" id="occupied"><span class="muted">Sin consulta todavía</span></div>
+      </article>
+    </section>
+
+    <section id="agenda-area" class="card agenda" hidden>
+      <div class="row space"><div><p class="eyebrow">MIS REGISTROS</p><h2 id="agenda-heading">Agenda de citas</h2></div><button id="refresh" type="button" class="button ghost">Actualizar agenda ↻</button></div>
+      <p class="hint" id="agenda-hint">Esta tabla muestra la información autorizada para tu cuenta.</p>
+      <div class="table-wrap"><table><thead><tr><th>Folio</th><th>Paciente</th><th>Médico</th><th>Fecha</th><th>Horario</th><th>Estado</th><th id="action-head">Acción</th></tr></thead><tbody id="appointments"><tr><td colspan="7">Aún no hay información.</td></tr></tbody></table></div>
+    </section>
+
+    <section id="admin-area" class="admin-grid" hidden>
+      <article class="card"><p class="eyebrow">ADMINISTRACIÓN</p><h2>Resumen del hospital</h2><div id="metrics" class="metrics"></div><h3>Cuentas de demostración</h3><div class="table-wrap"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th></tr></thead><tbody id="users"></tbody></table></div></article>
+      <article class="card"><p class="eyebrow">CATÁLOGO</p><h2>Registrar médico</h2><p class="hint">El administrador puede agregar médicos al catálogo. Los cambios permanecen guardados.</p>
+        <form id="new-doctor-form"><label for="new-id">ID del médico</label><input id="new-id" required maxlength="12" placeholder="MED004">
+          <label for="new-name">Nombre</label><input id="new-name" required maxlength="120" placeholder="Dr. Nombre Apellido">
+          <label for="new-specialty">Especialidad</label><input id="new-specialty" required maxlength="100" placeholder="Dermatología">
+          <button type="submit" class="button primary full">Agregar al catálogo</button></form>
+      </article>
+    </section>
+    <p class="footnote">MVP académico · Los roles y contraseñas están destinados únicamente a demostraciones locales.</p>
   </main>
 </body>
 </html>
