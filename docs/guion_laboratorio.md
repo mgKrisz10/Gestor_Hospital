@@ -1,37 +1,26 @@
-# Ensayo para tres pruebas aleatorias — segundo parcial
+# Pruebas del hospital
 
-La profesora puede elegir cualquier función **incluida como implementada en el reporte**, no solo tres escenarios preparados. Estos casos cubren las variantes que conviene ensayar.
+Inicia el programa con `python app.py`. Los usuarios son `admin`, `doctora`, `paciente`, `recepcion` y `consulta`. La contraseña es `Demo2026!`.
 
-## Entrar con los cinco perfiles
+## Iniciar sesión
+Prueba las cinco cuentas. Una contraseña incorrecta debe impedir el acceso. Cierra sesión antes de cambiar de usuario.
 
-Ejecuta `python app.py`. En la pantalla de inicio, selecciona `admin`, `doctora`, `paciente`, `recepcion` o `consulta`, todos con clave `Demo2026!`. La contraseña errónea debe rechazarse. Cierra sesión antes de cambiar de rol.
+## Recepción
+Entra como `recepcion` y consulta horarios de un médico en una fecha nueva. Registra una cita de 30 minutos. El horario debe desaparecer de los disponibles. Intenta registrar otra cita en el mismo horario: no debe permitirlo. Cancela la cita y vuelve a buscar el horario.
 
-## Recepción — consulta / agenda / cancelación
+## Doctor
+Entra como `doctora` y consulta la agenda del médico MED001. No debe poder consultar la agenda de otro médico ni cancelar citas.
 
-Entra como `recepcion`, busca un médico y una fecha sin citas. Prueba duración 30 min (12 espacios en jornada vacía). Selecciona uno, registra un paciente ficticio y comprueba que el horario queda ocupado. Un segundo registro total/parcialmente empalmado debe rechazarse. Cancela el primero y confirma que el intervalo vuelve a estar libre. Prueba fechas distintas y médicos distintos para verificar independencia de agendas.
+## Paciente
+Entra como `recepcion` y registra una cita marcando **Asociar a la cuenta «paciente»**. Cierra sesión y entra como `paciente`. Debe aparecer esa cita, pero no las de otras personas.
 
-## Doctor — agenda propia
+## Administrador
+Entra como `admin`. Revisa la agenda y el resumen. Da de alta un médico con ID `MED004`, nombre y especialidad. Intenta repetir el mismo ID: debe mostrar un error.
 
-Entra como `doctora`, vinculada a MED001. Consulta su agenda; no debe ver las citas de MED002 ni poder modificarlas. La API rechaza consultar disponibilidad de MED002 desde este usuario (403).
+## Personal autorizado
+Entra como `consulta`. Puede buscar horarios, pero no tiene acceso a citas ni a operaciones de registro o cancelación.
 
-## Paciente — privacidad
-
-Para preparar citas visibles al usuario `paciente`, desde `recepcion` marca la casilla **Vincular cita con la cuenta paciente de demostración** antes de confirmar. Inicia después como `paciente`. Solo aparece su registro, nunca citas creadas para otros pacientes. Puede buscar horarios pero no registrar/cancelar.
-
-## Administrador — registro de médicos
-
-Entra como `admin`; comprueba el panel de resumen, las cinco cuentas y el catálogo. Agrega `MED004`, nombre `Dr. Marco de Prueba`, especialidad `Medicina Interna`. Aparece en la lista de médicos. Un segundo alta con el mismo ID debe rechazarse. También puede registrar y cancelar citas.
-
-## Personal autorizado — lectura limitada
-
-Entra como `consulta`; consulta médicos y horarios libres. No hay tabla de citas ni botones de modificación. Las rutas que contienen datos personales o modificaciones deben devolver 403.
-
-## Ejecutar pruebas automáticas
-
+## Ejecutar pruebas
 `python -m unittest discover -s tests -v`
 
-**53 pruebas automatizadas** (la prueba visual completa debe repetirse en la PC de laboratorio). No se ofrecen como implementados: reprogramación, edición/eliminación de cuentas, notificaciones, ausencias del doctor ni expediente médico.
-
-## Datos de prueba
-
-El archivo `data/hospital.sqlite3` almacena lo realizado. Si deseas una demo nueva, cierra Python y elimina solamente ese archivo, que se reconstruye al arrancar. Nunca uses información clínica real.
+El archivo `data/hospital.sqlite3` guarda las citas. Para reiniciar los datos, cierra el servidor, elimina ese archivo y vuelve a abrir el programa.

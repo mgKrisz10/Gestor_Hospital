@@ -1,4 +1,4 @@
-/* Prototipo conservado del primer parcial. El MVP se ejecuta en la raíz. */
+/* Consulta de disponibilidad. */
 const $ = id => document.getElementById(id);
 const FALLBACK_DOCTORS=[
  {id:'MED001',nombre:'Dra. Ana Lopez',especialidad:'Medicina general',citas:[{inicio:540,duracion:30},{inicio:600,duracion:60},{inicio:630,duracion:30}]},
@@ -14,7 +14,7 @@ function fallbackAvailability(citas,duracion){
  const points=[{inicio:480,fin:480},...merged,{inicio:840,fin:840}];
  return points.slice(0,-1).flatMap((a,i)=>{const b=points[i+1],n=Math.floor((b.inicio-a.fin)/duracion);return Array.from({length:Math.max(n,0)},(_,k)=>({inicio:a.fin+k*duracion,fin:a.fin+(k+1)*duracion}))});
 }
-async function loadDoctors(){let items=FALLBACK_DOCTORS;try{const response=await fetch('/api/doctores');if(!response.ok)throw Error();items=await response.json();$('connection').textContent='Python conectado correctamente.'}catch{$('connection').textContent='Modo demostración: frontend sin servidor.'}
+async function loadDoctors(){let items=FALLBACK_DOCTORS;try{const response=await fetch('/api/doctores');if(!response.ok)throw Error();items=await response.json();$('connection').textContent='Conectado al servidor.'}catch{$('connection').textContent='Usando los horarios guardados en esta página.'}
 $('doctor').innerHTML=items.map(d=>`<option value="${d.id}">${d.nombre} - ${d.especialidad}</option>`).join('');}
 async function search(){const id=$('doctor').value,dur=Number($('duration').value);let data;
 try{const response=await fetch(`/api/disponibilidad?doctor=${encodeURIComponent(id)}&duracion=${dur}`);data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Error de servidor')}catch{

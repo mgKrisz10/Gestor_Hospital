@@ -1,4 +1,4 @@
-"""MVP de citas: reglas, modelos y persistencia SQLite sin dependencias externas."""
+"""Registro de médicos, pacientes y citas en SQLite."""
 from __future__ import annotations
 
 import json
@@ -43,7 +43,7 @@ class CitaMedica:
 
 
 class HospitalService:
-    """Operaciones de consulta, registro y cancelación del MVP."""
+    """Operaciones de consulta, registro y cancelación de citas."""
 
     def __init__(self, db_path: str | Path | None = None, doctores_path: str | Path | None = None):
         self.db_path = str(db_path or ROOT / 'data' / 'hospital.sqlite3')

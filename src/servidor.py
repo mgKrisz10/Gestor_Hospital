@@ -1,4 +1,4 @@
-"""Servidor HTTP del MVP: sesiones por token y control de permisos en el backend."""
+"""Servidor HTTP del gestor de citas."""
 from __future__ import annotations
 
 import json
@@ -199,9 +199,9 @@ class Handler(BaseHTTPRequestHandler):
 
 def main(host='127.0.0.1',port=8000):
     server=ThreadingHTTPServer((host,port),Handler)
-    print('Gestor de Citas Médicas - acceso por perfiles (demo local)')
+    print('MedAgenda - Gestor de citas médicas')
     print(f'Servidor: http://{host}:{port}')
-    print('Usa cuentas DEMO documentadas en README. Ctrl+C para finalizar.')
+    print('Ctrl+C para detener el servidor.')
     try:
         server.serve_forever()
     except KeyboardInterrupt:

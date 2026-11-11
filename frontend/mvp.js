@@ -1,5 +1,5 @@
 'use strict';
-// Sesiones de demostración: el token no se almacena de manera permanente.
+// El token se conserva mientras la página está abierta.
 const $ = id => document.getElementById(id);
 let token = null;
 let usuario = null;
@@ -10,11 +10,11 @@ const rolNombre = {
   recepcion: 'Recepción', personal_autorizado: 'Personal autorizado'
 };
 const rolInfo = {
-  administrador: ['Administración del hospital', 'Revisa las citas, consulta las cuentas de prueba y registra nuevos médicos en el catálogo.'],
-  doctor: ['Agenda de mi consultorio', 'Puedes consultar las citas asignadas a tu consultorio. No puedes cambiarlas ni consultar datos de otros médicos.'],
-  paciente: ['Mis citas médicas', 'Solo aparecen las citas asociadas a tu cuenta de paciente.'],
-  recepcion: ['Recepción y agenda', 'Consulta horarios, registra pacientes ficticios y cancela citas, sin empalmes.'],
-  personal_autorizado: ['Consulta de horarios', 'Puedes consultar médicos y disponibilidad, pero no ver información personal ni modificar citas.']
+  administrador: ['Administración', 'Consulta las citas y administra el catálogo de médicos.'],
+  doctor: ['Mi agenda', 'Citas y horarios de tu consultorio.'],
+  paciente: ['Mis citas', 'Consulta las citas asociadas a tu cuenta.'],
+  recepcion: ['Recepción', 'Busca horarios, registra citas y administra las reservas.'],
+  personal_autorizado: ['Consulta de horarios', 'Consulta médicos y horarios disponibles.']
 };
 const hora = t => `${String(Math.floor(t / 60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
 function estado(texto, malo=false) {
@@ -63,8 +63,6 @@ async function iniciarSesion(event) {
     $('user-pill').textContent = `${usuario.nombre} · ${rolNombre[usuario.rol]}`;
     $('dashboard-heading').textContent = rolInfo[usuario.rol][0];
     $('dashboard-description').textContent = rolInfo[usuario.rol][1];
-    $('dashboard-eyebrow').textContent = `PERFIL · ${rolNombre[usuario.rol].toUpperCase()}`;
-    $('role-note').textContent = `Acceso activo: ${rolNombre[usuario.rol]} · Los permisos se validan en el servidor, no solo en esta pantalla.`;
     const puedeGestionar = ['administrador','recepcion'].includes(usuario.rol);
     const puedeConsultar = true;
     $('availability-area').hidden = !puedeConsultar;
@@ -72,11 +70,10 @@ async function iniciarSesion(event) {
     $('agenda-area').hidden = usuario.rol === 'personal_autorizado';
     $('admin-area').hidden = usuario.rol !== 'administrador';
     $('agenda-heading').textContent = usuario.rol === 'doctor' ? 'Mi agenda médica' : usuario.rol === 'paciente' ? 'Mis citas' : 'Citas registradas';
-    $('agenda-hint').textContent = usuario.rol === 'doctor' ? 'Se muestran únicamente las citas de tu consultorio.' : usuario.rol === 'paciente' ? 'Solo aparecen las citas vinculadas a tu cuenta de prueba.' : 'Las citas programadas pueden cancelarse desde este perfil.';
     $('action-head').hidden = !puedeGestionar;
     $('doctor').disabled = usuario.rol === 'doctor';
     resetSeleccion();
-    estado('Has iniciado sesión correctamente.');
+    estado('Sesión iniciada.');
     if (puedeConsultar) await cargarDoctores();
     if (!['personal_autorizado'].includes(usuario.rol)) await cargarAgenda();
     if (usuario.rol === 'administrador') await cargarAdministrador();
@@ -102,7 +99,7 @@ function resetSeleccion() {
   $('chosen').textContent = 'Ninguna';
   $('book').disabled = true;
   $('slots').replaceChildren();
-  const vacio=document.createElement('p'); vacio.className='empty'; vacio.textContent='Presiona «Buscar espacios libres» para consultar.';
+  const vacio=document.createElement('p'); vacio.className='empty'; vacio.textContent='Busca los horarios de un médico.';
   $('slots').append(vacio);
   $('occupied').textContent = 'Sin consulta todavía';
   $('counter').textContent = '—';
@@ -139,7 +136,7 @@ async function consultar() {
     });
     $('occupied').replaceChildren(...ocupados);
     if(!ocupados.length) $('occupied').textContent='No hay citas ocupadas para este médico y fecha.';
-    estado(`Consulta actualizada: ${$('date').value}.`);
+    estado(`Horarios del ${$('date').value}.`);
   } catch(e) {estado(e.message,true);}
 }
 async function cargarPacienteDemo() {
@@ -164,7 +161,7 @@ async function reservar() {
     const respuesta=await post('/api/mvp/citas',data);
     $('demo-patient').checked=false;alternarPacienteDemo();
     await cargarAgenda();await consultar();
-    estado(`Cita #${respuesta.id} guardada correctamente. El horario ahora está ocupado.`);
+    estado(`Cita #${respuesta.id} registrada.`);
     if(usuario.rol==='administrador')await cargarAdministrador();
   } catch(e){estado(e.message,true);await consultar();} finally {$('book').disabled=seleccionado===null;}
 }
@@ -184,13 +181,13 @@ async function cargarAgenda() {
             try{await post(`/api/mvp/citas/${c.id}/cancelar`,{});await cargarAgenda();
               if(!$('availability-area').hidden && $('date').value===c.fecha)await consultar();
               if(usuario.rol==='administrador')await cargarAdministrador();
-              estado(`Se canceló la cita #${c.id}; el horario quedó libre.`);
+              estado(`Cita #${c.id} cancelada.`);
             }catch(e){estado(e.message,true);}};act.append(btn);
         } else {act.textContent='—';} tr.append(act);}
       return tr;
     });
     $('appointments').replaceChildren(...rows);
-    if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=puedeGestionar?7:6;td.textContent='No hay citas para mostrar con este perfil.';tr.append(td);$('appointments').append(tr);}
+    if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=puedeGestionar?7:6;td.textContent='No hay citas registradas.';tr.append(td);$('appointments').append(tr);}
   } catch(e){estado(e.message,true);}
 }
 async function cargarAdministrador() {

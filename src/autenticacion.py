@@ -1,7 +1,6 @@
-"""Autenticación y autorización de DEMOSTRACIÓN, sin dependencias externas.
+"""Autenticación y permisos para las cuentas de prueba.
 
-Contraseñas PBKDF2-HMAC SHA256; tokens aleatorios almacenados solo en RAM.
-El modelo no sirve para producción ni datos clínicos reales.
+Las contraseñas se guardan mediante PBKDF2-HMAC-SHA256 y las sesiones en memoria.
 """
 from __future__ import annotations
 

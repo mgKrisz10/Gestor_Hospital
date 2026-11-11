@@ -1,7 +1,7 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gestor de Citas - Primer parcial</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
-<body><header><strong>+ MedAgenda</strong><span>Prototipo del primer parcial</span><a href="/">Ir al MVP actualizado</a></header>
-<main><h1>Encuentra un horario disponible</h1><p>Selecciona un médico y la duración de la cita. El sistema calcula espacios sin traslapes dentro de su jornada laboral.</p>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MedAgenda | Consultar horarios</title><link rel="stylesheet" href="styles.css"><script src="app.js" defer></script></head>
+<body><header><strong>+ MedAgenda</strong><span>Consulta de horarios</span><a href="/">Inicio</a></header>
+<main><h1>Encuentra un horario disponible</h1><p>Elige un médico, una fecha y la duración de la consulta.</p>
 <section class="layout"><div class="panel"><h2>Buscar disponibilidad</h2><label for="doctor">Médico</label><select id="doctor"></select><p id="doctor-info"></p><label for="date">Fecha</label><input id="date" type="date"><label for="duration">Duración</label><select id="duration"><option value="15">15 minutos</option><option value="30" selected>30 minutos</option><option value="45">45 minutos</option><option value="60">60 minutos</option><option value="90">90 minutos</option><option value="120">120 minutos</option></select><button id="search">Buscar horarios</button><p id="connection"></p></div>
 <div class="panel"><h2 id="result-title">Selecciona tus datos</h2><strong id="count"></strong><p id="message">Los horarios disponibles aparecerán aquí.</p><div id="schedule"></div></div></section>
 <div class="panel"><h2>Citas ocupadas</h2><div id="occupied">Selecciona un médico para visualizar su agenda.</div></div></main></body></html>

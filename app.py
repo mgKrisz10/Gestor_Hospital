@@ -1,4 +1,4 @@
-"""Punto de entrada del demo: python app.py"""
+"""Inicia el servidor del hospital."""
 import socket
 import threading
 import webbrowser

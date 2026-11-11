@@ -1,11 +1,11 @@
-MVP HOSPITAL — SEGUNDO PARCIAL
+GESTOR DE CITAS MÉDICAS
 
-1) Abre esta carpeta en Visual Studio Code.
-2) Ejecuta: python app.py (en Windows, INICIAR.bat).
-3) Abre la dirección local mostrada en la terminal.
-4) Para iniciar sesión utiliza: admin / doctora / paciente / recepcion / consulta,
-   todas con contraseña Demo2026!.
-5) Revisa docs/guion_laboratorio.md para ensayar los cinco perfiles.
-6) Ejecuta pruebas con: python -m unittest discover -s tests -v
+1. Ejecuta python app.py o INICIAR.bat.
+2. Abre la dirección que muestra la terminal.
+3. Elige un usuario: admin, doctora, paciente, recepcion o consulta.
+4. La contraseña de prueba es Demo2026!.
+5. Para probar las funciones, revisa docs/guion_laboratorio.md.
 
-Nota: el sistema requiere el servidor Python; abrir mvp.html como archivo no funciona.
+Pruebas automáticas: python -m unittest discover -s tests -v
+
+No abras frontend/mvp.html como archivo local; necesita el servidor.
