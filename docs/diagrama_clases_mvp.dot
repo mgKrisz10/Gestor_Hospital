@@ -9,12 +9,12 @@ digraph HospitalUML {
   Usuario [label="{Usuario|+ id: int\l+ usuario: str\l+ nombre: str\l+ rol: str\l+ doctor_id: str?\l+ paciente_id: int?\l}"];
   Doctor [label="{Doctor|+ id: str\l+ nombre: str\l+ especialidad: str\l+ activo: bool\l}"];
   Paciente [label="{Paciente|+ id: int\l+ nombre: str\l+ telefono: str\l+ correo: str\l}"];
-  CitaMedica [label="{CitaMedica|+ id: int\l+ doctor_id: str\l+ paciente_id: int\l+ fecha: str\l+ inicio: int\l+ duracion: int\l+ estado: str\l}"];
+  CitaMedica [label="{CitaMedica|+ id: int\l+ doctor_id: str\l+ paciente_id: int\l+ fecha: str\l+ inicio: int\l+ duracion: int\l+ estado: programada/cancelada/pendiente_reagendar\l}"];
   Ausencia [label="{Ausencia|+ id: int\l+ doctor_id: str\l+ fecha: str\l+ motivo: str\l}"];
   Notificacion [label="{Notificacion|+ id: int\l+ paciente_id: int\l+ cita_id: int\l+ tipo: str\l+ mensaje: str\l+ leida: bool\l}"];
   Intervalo [label="{Intervalo|+ inicio: int\l+ fin: int\l}"];
   AutenticacionService [fillcolor="#e5f2ee",label="{AutenticacionService|+ login(usuario,clave)\l+ validar(token)\l+ logout(token)\l+ crear_usuario(...)\l+ actualizar_usuario(...)\l+ eliminar_usuario(...)\l}"];
-  HospitalService [fillcolor="#e5f2ee",label="{HospitalService|+ registrar_paciente(...)\l+ listar_pacientes()\l+ registrar_doctor(...)\l+ impacto_doctor(id)\l+ dar_baja_doctor(id)\l+ reactivar_doctor(id)\l+ disponibilidad(...)\l+ agendar(...)\l+ reprogramar(...)\l+ cancelar(...)\l+ proximas_citas(...)\l+ notificar_ausencia(...)\l+ levantar_ausencia(id)\l+ notificaciones(...)\l}"];
+  HospitalService [fillcolor="#e5f2ee",label="{HospitalService|+ registrar_paciente(...)\l+ listar_pacientes()\l+ registrar_doctor(...)\l+ impacto_doctor(id)\l+ directorio_medicos()\l+ dar_baja_doctor(id)\l+ reactivar_doctor(id)\l+ disponibilidad(...)\l+ agendar(...)\l+ reprogramar(...)\l+ cancelar(...)\l+ proximas_citas(...)\l+ notificar_ausencia(...)\l+ levantar_ausencia(id)\l+ notificaciones(...)\l}"];
   Handler [fillcolor="#edf3fc",color="#718bb0",label="{Handler (HTTP)|+ do_GET()\l+ do_POST()\l+ enviar(...)\l}"];
 
   {rank=same; Usuario; Doctor; Paciente;}

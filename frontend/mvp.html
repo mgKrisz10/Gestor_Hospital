@@ -115,6 +115,12 @@
       <div id="notifications"></div>
     </section>
 
+    <section id="directory-area" class="card directory" hidden>
+      <div class="row space"><h2>Directorio de médicos</h2><button id="directory-refresh" class="button ghost" type="button">Actualizar</button></div>
+      <p class="hint">Consulta de especialidades y capacidad. No se muestran datos de pacientes.</p>
+      <div class="table-wrap"><table><thead><tr><th>ID</th><th>Médico</th><th>Especialidad</th><th>Estado</th><th>Citas programadas</th><th>Pendientes de reagendar</th></tr></thead><tbody id="directory-doctors"></tbody></table></div>
+    </section>
+
     <section id="admin-area" class="admin-grid" hidden>
       <article class="card"><h2>Resumen</h2><div id="metrics" class="metrics"></div><h3>Usuarios</h3><div class="table-wrap"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="users"></tbody></table></div></article>
       <article class="card"><h2>Registrar médico</h2>
@@ -126,8 +132,8 @@
     </section>
     <section id="doctors-admin-area" class="card catalog-admin" hidden>
       <div class="row space"><h2>Administrar médicos</h2><button id="doctor-admin-refresh" class="button ghost" type="button">Actualizar</button></div>
-      <p class="hint">Al dar de baja a un médico, se cancelan sus citas futuras. Las citas anteriores permanecen en el historial.</p>
-      <div class="table-wrap"><table><thead><tr><th>ID</th><th>Médico</th><th>Especialidad</th><th>Estado</th><th>Citas pendientes</th><th>Acción</th></tr></thead><tbody id="doctor-admin-list"></tbody></table></div>
+      <p class="hint">Al dar de baja a un médico, sus citas futuras quedan pendientes de reagendar. Se conserva el historial.</p>
+      <div class="table-wrap"><table><thead><tr><th>ID</th><th>Médico</th><th>Especialidad</th><th>Estado</th><th>Citas programadas</th><th>Acción</th></tr></thead><tbody id="doctor-admin-list"></tbody></table></div>
     </section>
     <section class="card admin-users" id="users-editor" hidden>
       <h2 id="user-form-title">Registrar usuario</h2>

@@ -74,7 +74,7 @@ class HospitalService:
                     paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
                     fecha TEXT NOT NULL, inicio INTEGER NOT NULL, duracion INTEGER NOT NULL,
                     estado TEXT NOT NULL DEFAULT 'programada'
-                       CHECK (estado IN ('programada', 'cancelada')));
+                       CHECK (estado IN ('programada', 'cancelada', 'pendiente_reagendar')));
                 CREATE INDEX IF NOT EXISTS idx_citas_agenda ON citas(doctor_id, fecha, estado, inicio);
             ''')
             datos = json.loads(self.doctores_path.read_text(encoding='utf-8'))
@@ -180,7 +180,7 @@ class HospitalService:
         row = con.execute('SELECT * FROM citas WHERE id=?', (cita_id,)).fetchone()
         if row is None:
             raise ReglaNegocioError('Cita no encontrada')
-        if row['estado'] != 'programada':
+        if row['estado'] not in ('programada', 'pendiente_reagendar'):
             raise ReglaNegocioError('La cita ya está cancelada')
         return row
 

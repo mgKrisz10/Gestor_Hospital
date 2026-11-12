@@ -17,7 +17,7 @@ const rolInfo = {
   doctor: ['Mi agenda', 'Citas y horarios de tu consultorio.'],
   paciente: ['Mis citas', 'Consulta las citas asociadas a tu cuenta.'],
   recepcion: ['Recepción', 'Busca horarios, registra citas y administra las reservas.'],
-  personal_autorizado: ['Consulta de horarios', 'Consulta médicos y horarios disponibles.']
+  personal_autorizado: ['Coordinación de atención', 'Consulta el directorio médico, sus especialidades y los horarios disponibles, sin acceder a datos personales.']
 };
 const hora = t => `${String(Math.floor(t / 60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
 function ventana(titulo, texto, confirmacion=false){
@@ -77,7 +77,7 @@ function cerrarSesion(mostrarMensaje=true) {
   $('logout').hidden = true;
   $('password').value = '';
   $('login-error').hidden = true;
-  ['patients-area','absences-area','notifications-area','users-editor','reprogram-area'].forEach(id=>$(id).hidden=true);
+  ['patients-area','absences-area','notifications-area','users-editor','reprogram-area','directory-area'].forEach(id=>$(id).hidden=true);
   if (mostrarMensaje && viejo) fetch('/api/mvp/auth/logout',{method:'POST', headers:{Authorization:`Bearer ${viejo}`,'Content-Type':'application/json'},body:'{}'}).catch(()=>{});
 }
 async function iniciarSesion(event) {
@@ -100,6 +100,7 @@ async function iniciarSesion(event) {
     $('availability-area').hidden = !puedeConsultar;
     $('booking-form').hidden = !puedeGestionar;
     $('agenda-area').hidden = usuario.rol === 'personal_autorizado';
+    $('directory-area').hidden = !['personal_autorizado','administrador','recepcion'].includes(usuario.rol);
     $('admin-area').hidden = usuario.rol !== 'administrador';
     $('doctors-admin-area').hidden = usuario.rol !== 'administrador';
     $('users-editor').hidden = usuario.rol !== 'administrador';
@@ -118,6 +119,7 @@ async function iniciarSesion(event) {
     if (usuario.rol === 'administrador') await cargarAdministrador();
     if (['administrador','doctor'].includes(usuario.rol)) await cargarAusencias();
     if (usuario.rol === 'paciente') await cargarNotificaciones();
+    if (['personal_autorizado','administrador','recepcion'].includes(usuario.rol)) await cargarDirectorio();
   } catch (e) {
     if (token) estado(e.message, true);
     else { $('login-error').textContent = e.message; $('login-error').hidden = false; }
@@ -233,7 +235,7 @@ async function cargarAgenda() {
       const tr=document.createElement('tr');
       const values=[`#${c.id}`,c.paciente_nombre,c.doctor_nombre,c.fecha,`${hora(c.inicio)} — ${hora(c.inicio+c.duracion)}`];
       for(const val of values){const td=document.createElement('td');td.textContent=String(val);tr.append(td);}
-      const td=document.createElement('td');const span=document.createElement('span');span.className=`state ${c.estado}`;span.textContent=c.estado;td.append(span);tr.append(td);
+      const td=document.createElement('td');const span=document.createElement('span');span.className=`state ${c.estado}`;span.textContent=c.estado==='pendiente_reagendar'?'Pendiente de reagendar':c.estado;td.append(span);tr.append(td);
       if(puedeGestionar){const act=document.createElement('td');
         if(c.estado==='programada') {const btn=document.createElement('button');btn.type='button';btn.className='small-btn';btn.textContent='Cancelar';
           const edit=document.createElement('button');edit.type='button';edit.className='small-btn';edit.textContent='Reprogramar';
@@ -244,6 +246,9 @@ async function cargarAgenda() {
               if(usuario.rol==='administrador')await cargarAdministrador();
               estado(`Cita #${c.id} cancelada.`);
             }catch(e){estado(e.message,true);}};act.append(btn);
+        } else if(c.estado==='pendiente_reagendar'){
+          const edit=document.createElement('button');edit.type='button';edit.className='small-btn';
+          edit.textContent='Reagendar';edit.onclick=()=>abrirReprogramacion(c);act.append(edit);
         } else {act.textContent='—';} tr.append(act);}
       return tr;
     });
@@ -255,7 +260,7 @@ async function cargarAdministrador() {
   if(usuario.rol!=='administrador')return;
   try {
     const [r,u]=await Promise.all([api('/api/mvp/resumen'),api('/api/mvp/usuarios')]);
-    const labels={doctores:'Médicos',pacientes:'Pacientes',citas_programadas:'Citas programadas',citas_canceladas:'Citas canceladas'};
+    const labels={doctores:'Médicos',pacientes:'Pacientes',citas_programadas:'Citas programadas',citas_canceladas:'Citas canceladas',citas_pendientes_reagendar:'Por reagendar'};
     $('metrics').replaceChildren(...Object.entries(labels).map(([key,label])=>{
       const div=document.createElement('div'),strong=document.createElement('strong'),small=document.createElement('small');
       strong.textContent=String(r.resumen[key]);small.textContent=label;div.append(strong,small);return div;
@@ -272,7 +277,22 @@ async function cargarAdministrador() {
       return tr;
     }));
     await cargarCatalogoMedicos();
+    await cargarDirectorio();
   } catch(e){estado(e.message,true);}
+}
+async function cargarDirectorio(){
+  if(!usuario || !['personal_autorizado','administrador','recepcion'].includes(usuario.rol))return;
+  try{
+    const data=await api('/api/mvp/doctores/directorio');
+    $('directory-doctors').replaceChildren(...data.doctores.map(d=>{
+      const tr=document.createElement('tr');
+      for(const value of [d.id,d.nombre,d.especialidad,d.activo?'Activo':'De baja',
+        d.citas_programadas,d.citas_por_reagendar]){
+        const td=document.createElement('td');td.textContent=String(value);tr.append(td);
+      }
+      return tr;
+    }));
+  }catch(e){estado(e.message,true)}
 }
 async function cargarCatalogoMedicos(){
   if(usuario.rol!=='administrador')return;
@@ -293,19 +313,19 @@ async function cambiarEstadoDoctor(doctor){
   try{
     if(doctor.activo){
       const impacto=await api(`/api/mvp/doctores/${encodeURIComponent(doctor.id)}/impacto`);
-      const cantidad=impacto.citas_por_cancelar;
+      const cantidad=impacto.citas_por_reagendar;
       const aprobado=await ventana('Dar de baja al médico',
-        `${doctor.nombre} tiene ${cantidad} cita(s) programada(s) que se cancelarán.\n`+
+        `${doctor.nombre} tiene ${cantidad} cita(s) que quedarán pendientes de reagendar.\n`+
         `Su historial de ${impacto.citas_historicas} cita(s) se conservará.\n¿Continuar?`,true);
       if(!aprobado)return;
       const r=await post(`/api/mvp/doctores/${encodeURIComponent(doctor.id)}/baja`,{});
-      await ventana('Médico dado de baja',`Citas futuras canceladas: ${r.canceladas.length}. El historial se conserva.`);
+      await ventana('Médico dado de baja',`Citas por reagendar: ${r.pendientes_reagendar.length}. El historial se conserva.`);
     }else{
       if(!await ventana('Reactivar médico',`¿Volver a permitir citas para ${doctor.nombre}?`,true))return;
       await post(`/api/mvp/doctores/${encodeURIComponent(doctor.id)}/reactivar`,{});
       await ventana('Médico reactivado',`${doctor.nombre} vuelve a estar disponible para nuevas citas.`);
     }
-    await cargarDoctores();await cargarCatalogoMedicos();await cargarAgenda();await cargarAdministrador();
+    await cargarDoctores();await cargarCatalogoMedicos();await cargarAgenda();await cargarAdministrador();await cargarDirectorio();
   }catch(e){estado(e.message,true);await ventana('No se pudo completar',e.message)}
 }
 async function registrarDoctor(event) {
@@ -352,7 +372,8 @@ async function registrarPaciente(event){
 }
 function abrirReprogramacion(c){
   editingAppointment=c.id;$('reschedule-id').textContent=`#${c.id}`;
-  $('reschedule-doctor').value=c.doctor_id;
+  const puedeSeleccionar=listaDoctores.some(d=>d.id===c.doctor_id);
+  $('reschedule-doctor').value=puedeSeleccionar?c.doctor_id:(listaDoctores[0]?.id||'');
   $('reschedule-date').value=c.fecha;
   $('reschedule-time').value=hora(c.inicio);
   $('reschedule-duration').value=String(c.duracion);
@@ -477,6 +498,7 @@ $('user-form').addEventListener('submit',guardarUsuario);
 $('user-form-reset').addEventListener('click',limpiarUsuario);
 $('refresh').addEventListener('click',cargarAgenda);
 $('new-doctor-form').addEventListener('submit',registrarDoctor);
+$('directory-refresh').addEventListener('click',cargarDirectorio);
 const hoy=new Date();hoy.setMinutes(hoy.getMinutes()-hoy.getTimezoneOffset());
 $('date').value=hoy.toISOString().slice(0,10);
 $('absence-date').value=$('date').value;

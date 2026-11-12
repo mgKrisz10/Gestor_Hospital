@@ -100,6 +100,9 @@ class Handler(BaseHTTPRequestHandler):
                 svc = servicio()
                 if parsed.path == '/api/mvp/auth/me':
                     return self.enviar(200, {'ok':True, 'usuario':asdict(usuario)})
+                if parsed.path == '/api/mvp/doctores/directorio':
+                    auth.exigir(usuario,'personal_autorizado','administrador','recepcion')
+                    return self.enviar(200,{'ok':True,'doctores':svc.directorio_medicos()})
                 if parsed.path == '/api/mvp/doctores/admin':
                     auth.exigir(usuario,'administrador')
                     return self.enviar(200, {'ok':True,'doctores':svc.listar_doctores_todos()})

@@ -50,11 +50,53 @@ class HospitalService(BaseHospital):
                   PRIMARY KEY(doctor_id,usuario_id)
                 );
             ''')
+        self._actualizar_estados_citas()
+
+    def _actualizar_estados_citas(self):
+        # SQLite does not support ALTER TABLE to expand a CHECK constraint.
+        # Keep every appointment id and dependent notification in the original database.
+        conn = sqlite3.connect(self.db_path, timeout=10, isolation_level=None)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute('PRAGMA foreign_keys=OFF')
+            schema = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='citas'").fetchone()['sql']
+            if 'pendiente_reagendar' not in schema:
+                conn.execute('BEGIN IMMEDIATE')
+                try:
+                    conn.execute('''CREATE TABLE citas_upgrade (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        doctor_id TEXT NOT NULL REFERENCES doctores(id),
+                        paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
+                        fecha TEXT NOT NULL, inicio INTEGER NOT NULL, duracion INTEGER NOT NULL,
+                        estado TEXT NOT NULL DEFAULT 'programada'
+                          CHECK(estado IN ('programada','cancelada','pendiente_reagendar')),
+                        cancelacion_motivo TEXT NOT NULL DEFAULT ''
+                    )''')
+                    conn.execute('''INSERT INTO citas_upgrade
+                        (id,doctor_id,paciente_id,fecha,inicio,duracion,estado,cancelacion_motivo)
+                        SELECT id,doctor_id,paciente_id,fecha,inicio,duracion,estado,
+                               cancelacion_motivo FROM citas''')
+                    conn.execute('DROP TABLE citas')
+                    conn.execute('ALTER TABLE citas_upgrade RENAME TO citas')
+                    conn.execute('CREATE INDEX idx_citas_agenda ON citas(doctor_id,fecha,estado,inicio)')
+                    conn.execute('COMMIT')
+                except Exception:
+                    conn.execute('ROLLBACK')
+                    raise
+            conn.execute('PRAGMA foreign_keys=ON')
+            if conn.execute('PRAGMA foreign_key_check').fetchone() is not None:
+                raise RuntimeError('Citas con referencias inválidas después de migrar')
+            # Existing offboarding cancellations scheduled for the future remain actionable.
+            conn.execute('''UPDATE citas SET estado='pendiente_reagendar'
+                WHERE estado='cancelada' AND cancelacion_motivo='Baja del médico'
+                AND fecha>=?''', (self.hoy().isoformat(),))
+        finally:
+            conn.close()
 
     @staticmethod
     def ahora():
-        # Ciudad de México no cambia a horario de verano desde 2022: UTC-06:00.
-        # Evita depender de ZoneInfo, que puede no contar con tzdata en Windows.
+        # Ciudad de México no usa horario de verano desde 2022 (UTC-06:00).
+        # No depender de ZoneInfo: en Windows Python puede no traer tzdata.
         return datetime.now(timezone(timedelta(hours=-6)))
 
     @classmethod
@@ -95,6 +137,22 @@ class HospitalService(BaseHospital):
                 (SELECT COUNT(*) FROM citas c WHERE c.doctor_id=d.id AND c.estado='programada') citas_programadas
                 FROM doctores d ORDER BY d.id''')]
 
+    def directorio_medicos(self):
+        with self._conexion() as con:
+            return [dict(r) for r in con.execute('''                SELECT d.id,d.nombre,d.especialidad,d.activo,
+                    (SELECT COUNT(*) FROM citas c WHERE c.doctor_id=d.id
+                        AND c.estado='programada') AS citas_programadas,
+                    (SELECT COUNT(*) FROM citas c WHERE c.doctor_id=d.id
+                        AND c.estado='pendiente_reagendar') AS citas_por_reagendar
+                FROM doctores d ORDER BY d.nombre''')]
+
+    def resumen(self):
+        datos=super().resumen()
+        with self._conexion() as con:
+            datos['citas_pendientes_reagendar'] = con.execute(
+                "SELECT COUNT(*) FROM citas WHERE estado='pendiente_reagendar'").fetchone()[0]
+        return datos
+
     def impacto_doctor(self, doctor_id):
         with self._conexion() as con:
             row=con.execute('SELECT id,nombre,especialidad,activo FROM doctores WHERE id=?',(doctor_id,)).fetchone()
@@ -102,7 +160,7 @@ class HospitalService(BaseHospital):
             cnt=con.execute('''SELECT COUNT(*) total,
                     COALESCE(SUM(CASE WHEN estado='programada' AND fecha>=? THEN 1 ELSE 0 END),0) futuras
                     FROM citas WHERE doctor_id=?''',(self.hoy().isoformat(),doctor_id)).fetchone()
-            return {'ok':True,'doctor':dict(row),'citas_historicas':cnt['total'],'citas_por_cancelar':cnt['futuras']}
+            return {'ok':True,'doctor':dict(row),'citas_historicas':cnt['total'],'citas_por_reagendar':cnt['futuras']}
 
     def dar_baja_doctor(self, doctor_id):
         hoy=self.hoy().isoformat()
@@ -113,11 +171,11 @@ class HospitalService(BaseHospital):
                 rows=con.execute('''SELECT c.id,c.paciente_id,c.fecha FROM citas c
                     WHERE c.doctor_id=? AND c.estado='programada' AND c.fecha>=?''',
                     (doctor_id,hoy)).fetchall()
-                con.execute("UPDATE citas SET estado='cancelada',cancelacion_motivo='Baja del médico' "
+                con.execute("UPDATE citas SET estado='pendiente_reagendar',cancelacion_motivo='Baja del médico' "
                             "WHERE doctor_id=? AND estado='programada' AND fecha>=?",(doctor_id,hoy))
                 for r in rows:
                     self._avisar(con,r['paciente_id'],r['id'],'baja_medico',
-                                f'Cita #{r["id"]} cancelada: el médico dejó de prestar servicio.')
+                                f'Cita #{r["id"]} pendiente de reagendar: el médico dejó de prestar servicio.')
                 con.execute('UPDATE doctores SET activo=0 WHERE id=?',(doctor_id,))
                 # Guardar las cuentas activas suspendidas por esta baja, para restaurar solo esas cuentas.
                 con.execute('''INSERT OR IGNORE INTO suspensiones_doctor(doctor_id,usuario_id)
@@ -127,7 +185,7 @@ class HospitalService(BaseHospital):
             except Exception:
                 con.execute('ROLLBACK')
                 raise
-        return {'ok':True,'doctor_id':doctor_id,'canceladas':[r['id'] for r in rows],
+        return {'ok':True,'doctor_id':doctor_id,'pendientes_reagendar':[r['id'] for r in rows],
                 'citas_conservadas':True}
 
     def reactivar_doctor(self, doctor_id):
@@ -302,13 +360,18 @@ class HospitalService(BaseHospital):
         with self._conexion() as con:
             con.execute('BEGIN IMMEDIATE')
             try:
-                cita=self._obtener_cita(con,cita_id)
+                cita=con.execute('SELECT * FROM citas WHERE id=?',(cita_id,)).fetchone()
+                if cita is None:
+                    raise ReglaNegocioError('Cita no encontrada')
+                if cita['estado'] not in ('programada','pendiente_reagendar'):
+                    raise ReglaNegocioError('La cita ya está cancelada')
                 self._doctor_existe(con,doctor_id)
                 self._comprobar_asistencia(con,doctor_id,fecha)
                 ocupadas=self._ocupadas(con,doctor_id,fecha,excluir_id=cita_id)
                 if self._conflicto(ocupadas,inicio,duracion):
                     raise ReglaNegocioError('El nuevo horario ya está ocupado')
-                con.execute('UPDATE citas SET doctor_id=?,fecha=?,inicio=?,duracion=? WHERE id=?',
+                con.execute("""UPDATE citas SET doctor_id=?,fecha=?,inicio=?,duracion=?,
+                            estado='programada',cancelacion_motivo='' WHERE id=?""",
                             (doctor_id,fecha,inicio,duracion,cita_id))
                 patient=con.execute('SELECT nombre,correo FROM pacientes WHERE id=?',
                                     (cita['paciente_id'],)).fetchone()
@@ -393,7 +456,8 @@ class HospitalService(BaseHospital):
     def proximas_citas(self,paciente_id):
         if paciente_id is None: return []
         return [c for c in self.listar_citas() if c['paciente_id']==paciente_id and
-                c['estado']=='programada' and c['fecha']>=date.today().isoformat()]
+                c['estado'] in ('programada','pendiente_reagendar')
+                and c['fecha']>=self.hoy().isoformat()]
 
     def confirmacion(self,cita_id):
         cita_id=self._entero(cita_id,'ID de cita')

@@ -82,3 +82,11 @@ Este es un sistema local para la clase: utiliza datos ficticios. Incluye control
 ## Subir esta versión al fork
 
 En Windows, abre esta carpeta y ejecuta `SUBIR_GITHUB.bat`. Necesitas Git instalado y haber iniciado sesión en tu cuenta. El script actualiza **solo** la rama `segundo-parcial-mvp-2026` y no modifica `main`. También puedes copiar los archivos manualmente al repositorio y hacer `git add`, `git commit` y `git push`.
+
+## Directorio y citas por reagendar
+
+El perfil `consulta` corresponde al personal de coordinación: puede ver un directorio de médicos (nombre, especialidad, estado y números de citas) y consultar disponibilidad, pero no puede ver información personal de pacientes ni modificar citas.
+
+Cuando administración da de baja a un médico, las citas futuras pasan a **Pendiente de reagendar**, sin perder el historial. Recepción o administración puede pulsar **Reagendar** en la agenda y elegir otro médico y horario libre. El folio y paciente se conservan. La cuenta del médico dado de baja queda inactiva hasta una eventual reactivación.
+
+La primera ejecución con una base antigua actualiza el esquema de `citas` para admitir el nuevo estado sin borrar datos. Se recomienda respaldar `data/hospital.sqlite3` antes de actualizar.

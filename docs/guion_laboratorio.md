@@ -30,6 +30,15 @@ El archivo `data/hospital.sqlite3` conserva todos los cambios. Si se desea reini
 - **Intentar agendar con médico ocupado:** como recepción, reservar el 09:00–09:30 de una fecha futura y repetir con otro paciente. La segunda solicitud devuelve un error y la agenda conserva una cita programada.
 - **Liberar el espacio y volver a agendar:** cancelar la primera cita, consultar de nuevo y confirmar otra en el mismo intervalo. Si el día está bloqueado por ausencia, usar **Liberar fecha** (solo doctor o administrador). Las citas antes canceladas no vuelven a activarse.
 - **Cita el día anterior:** intentar consultar y registrar el día de ayer. Debe aparecer la ventana **Fecha anterior**. Aunque se envíe la solicitud directamente, la API rechaza registrar o reprogramar la cita.
-- **Dar de baja a un médico:** crear una cita futura, entrar como administrador, ir a **Administrar médicos** y elegir **Dar de baja**. La ventana muestra cuántas citas futuras se cancelarán. Confirmar: ya no se podrá agendar con ese doctor, su cuenta médica queda desactivada y sus citas anteriores permanecen en el historial. Reanudar con **Reactivar**. No se reactivan citas canceladas.
+- **Dar de baja a un médico:** crear una cita futura, entrar como administrador, ir a **Administrar médicos** y elegir **Dar de baja**. La ventana muestra cuántas citas futuras quedarán **Pendientes de reagendar**. Tras la baja, entrar como recepción o administración, buscar la cita en la agenda y usar **Reagendar** para pasarla a otro médico, conservando folio y paciente. La cuenta del doctor dado de baja queda desactivada; al reactivarlo, las citas pendientes no se reactivan solas.
 
 Pruebas automatizadas específicas: `python -m unittest tests.test_pruebas_maestra -v`.
+
+## Cambios de agenda, catálogo y personal autorizado
+
+- **Agenda de doctora:** iniciar sesión con `doctora` y contraseña `Demo2026!`, abrir **Mi agenda**. Deben verse solo las citas del médico MED001; comprobar que una cita de MED002 no aparece. Esta cuenta se desactiva cuando MED001 recibe baja administrativa.
+- **Pendiente de reagendar:** como recepción, registrar una cita futura con MED001. Después, como administrador, dar de baja a MED001. Al revisar las citas como recepción o administración, la cita debe mostrar el estado **Pendiente de reagendar** (no cancelada). Pulsar **Reagendar**, elegir MED002 y un horario disponible. La cita vuelve a `programada` y conserva su folio.
+- **Directorio:** iniciar sesión con `consulta` (personal autorizado). El panel permite consultar el directorio de médicos, especialidades, estado y cantidades de citas; también se pueden consultar horarios. No puede ver pacientes, agendas nominales, teléfonos ni registrar o cancelar citas.
+- **Tabla de médicos:** abrir **Directorio de médicos** como personal autorizado, recepción o administrador. Los médicos dados de baja deben aparecer como inactivos, con el número de citas pendientes de reagendar.
+
+El cambio de estado se migra automáticamente al iniciar el servidor con una base de datos anterior; no hace falta borrar `hospital.sqlite3`. Antes de actualizar, conviene respaldar ese archivo.

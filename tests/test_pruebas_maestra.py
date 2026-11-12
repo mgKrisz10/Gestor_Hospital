@@ -98,11 +98,11 @@ class PruebasMaestra(unittest.TestCase):
         status,impact=self.call('/api/mvp/doctores/MED001/impacto','admin')
         self.assertEqual(status,200)
         self.assertEqual(impact['citas_historicas'],2)
-        self.assertEqual(impact['citas_por_cancelar'],1)
+        self.assertEqual(impact['citas_por_reagendar'],1)
         status,r=self.call('/api/mvp/doctores/MED001/baja','admin',{})
         self.assertEqual(status,200)
-        self.assertEqual(r['canceladas'],[a['id']])
-        self.assertEqual([c['estado'] for c in self.svc.listar_citas(self.fecha)],['cancelada'])
+        self.assertEqual(r['pendientes_reagendar'],[a['id']])
+        self.assertEqual([c['estado'] for c in self.svc.listar_citas(self.fecha)],['pendiente_reagendar'])
         self.assertEqual([c['estado'] for c in self.svc.listar_citas(old_date)],['programada'])
         self.assertEqual(self.call('/api/mvp/citas',data=self.pedir_cita())[0],400)
         self.assertEqual(self.call('/api/mvp/disponibilidad?doctor=MED001&fecha='+self.fecha+'&duracion=30')[0],400)
@@ -117,7 +117,7 @@ class PruebasMaestra(unittest.TestCase):
         self.svc.dar_baja_doctor('MED001')
         self.assertEqual(self.call('/api/mvp/doctores/MED001/reactivar','admin',{})[0],200)
         self.assertEqual(self.call('/api/mvp/citas',data=self.pedir_cita())[0],201)
-        self.assertEqual([r['estado'] for r in self.svc.listar_citas(self.fecha)],['cancelada','programada'])
+        self.assertEqual([r['estado'] for r in self.svc.listar_citas(self.fecha)],['pendiente_reagendar','programada'])
         self.auth.login('doctora','Demo2026!')
 
     def test_08_intentar_baja_doble_y_medico_inexistente(self):

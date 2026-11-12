@@ -1,10 +1,19 @@
-GESTOR DE CITAS MÉDICAS - SEGUNDO PARCIAL
+GESTOR DE CITAS MÉDICAS - CAMBIOS DE REVISIÓN
 
-Las cinco cuentas disponen de funciones según su rol. Citas, médicos, pacientes y notificaciones se guardan en SQLite.
-Se añadieron las pruebas de laboratorio:
-- Evitar la reserva de un horario ocupado.
-- Liberar el horario de una cita cancelada y permitir una nueva reserva.
-- Impedir registrar o reprogramar citas en días anteriores.
-- Dar de baja médicos con una ventana de confirmación, cancelar citas futuras y conservar el historial. La reactivación no recupera citas canceladas.
-- Levantar una ausencia médica para admitir nuevas reservas.
-Se añadieron nueve pruebas específicas y se pasó el conjunto de 74 pruebas.
+La baja de un médico ya no cancela automáticamente las citas futuras: quedan
+pendientes de reagendar. Administración o recepción puede reasignar cada cita
+a otro doctor sin perder el folio, paciente o historial.
+
+Se agregó un directorio de médicos para personal autorizado, recepción y
+administración. Contiene médicos, especialidades, estado y cifras de citas;
+no muestra nombres ni datos personales de pacientes.
+
+La doctora puede iniciar sesión y consultar únicamente su agenda (MED001).
+Cuando el médico es dado de baja, se desactiva su cuenta; al reactivarlo,
+recupera el acceso sin reabrir automáticamente las citas pendientes.
+
+El inicio del servidor actualiza bases SQLite anteriores sin borrar sus citas.
+Conviene respaldar data/hospital.sqlite3 antes de actualizar.
+
+Se verificaron 85 pruebas automatizadas. La navegación visual de Chromium no
+pudo completarse en este entorno; verificar la interfaz en la computadora.
