@@ -5,8 +5,7 @@ import os
 import smtplib
 import sqlite3
 import ssl
-from datetime import date, datetime, timezone
-from zoneinfo import ZoneInfo
+from datetime import date, datetime, timezone, timedelta
 from email.message import EmailMessage
 from dataclasses import asdict
 
@@ -53,14 +52,25 @@ class HospitalService(BaseHospital):
             ''')
 
     @staticmethod
-    def hoy():
-        # Fecha local del hospital
-        return datetime.now(ZoneInfo('America/Mexico_City')).date()
+    def ahora():
+        # Ciudad de México no cambia a horario de verano desde 2022: UTC-06:00.
+        # Evita depender de ZoneInfo, que puede no contar con tzdata en Windows.
+        return datetime.now(timezone(timedelta(hours=-6)))
 
     @classmethod
-    def _no_pasado(cls, fecha):
-        if date.fromisoformat(fecha) < cls.hoy():
+    def hoy(cls):
+        return cls.ahora().date()
+
+    @classmethod
+    def _no_pasado(cls, fecha, inicio=None):
+        ahora = cls.ahora()
+        elegida = date.fromisoformat(fecha)
+        if elegida < ahora.date():
             raise ReglaNegocioError('No se pueden agendar citas para fechas anteriores a hoy')
+        if elegida == ahora.date() and inicio is not None:
+            minutos = ahora.hour * 60 + ahora.minute
+            if inicio <= minutos:
+                raise ReglaNegocioError('No se pueden agendar citas en horarios que ya pasaron')
 
     @staticmethod
     def _doctor_existe(con, doctor_id):
@@ -236,14 +246,18 @@ class HospitalService(BaseHospital):
             return {'ok':True,'doctor_id':doctor_id,'fecha':fecha,'duracion':value,
                     'intervalos':[],'citas_ocupadas':[],'ausencia':True,'motivo':ausencia['motivo']}
         value = super().disponibilidad(doctor_id,fecha,duracion)
+        if date.fromisoformat(fecha) == self.hoy():
+            actual = self.ahora()
+            minutos = actual.hour * 60 + actual.minute
+            value['intervalos'] = [slot for slot in value['intervalos'] if slot['inicio'] > minutos]
         value['ausencia']=False
         return value
 
     def agendar(self, doctor_id, fecha, inicio, duracion, paciente_nombre='',
                 paciente_telefono='', paciente_id=None, paciente_correo=''):
         fecha=self._fecha(fecha)
-        self._no_pasado(fecha)
         inicio=self._entero(inicio,'Inicio')
+        self._no_pasado(fecha, inicio)
         duracion=self._entero(duracion,'Duración')
         self._validar_horario(inicio,duracion)
         if paciente_id is None:
@@ -281,8 +295,8 @@ class HospitalService(BaseHospital):
     def reprogramar(self, cita_id, doctor_id, fecha, inicio, duracion):
         cita_id=self._entero(cita_id,'ID de cita')
         fecha=self._fecha(fecha)
-        self._no_pasado(fecha)
         inicio=self._entero(inicio,'Inicio')
+        self._no_pasado(fecha, inicio)
         duracion=self._entero(duracion,'Duración')
         self._validar_horario(inicio,duracion)
         with self._conexion() as con:
