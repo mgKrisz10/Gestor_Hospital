@@ -1,6 +1,5 @@
-RESUMEN DE PRUEBAS — MVP CON CINCO PERFILES
-
-53 pruebas ejecutadas localmente y 53 aprobadas.
-Comando: python -m unittest discover -s tests -v
-Incluye pruebas de disponibilidad del primer parcial, SQLite, empalmes, autenticación, roles, filtrado de datos y HTTP.
-Prueba visual: se validó la navegación de la interfaz contra datos simulados; el flujo navegador + servidor requiere comprobación final en el laboratorio.
+Revisión de laboratorio
+74 pruebas automatizadas de Python y HTTP aprobadas.
+Casos: horario ocupado, cancelar y volver a reservar, fecha anterior, ausencias, levantar ausencia, baja y reactivación de médico con citas.
+JavaScript: sintaxis comprobada; todas las referencias a IDs HTML existen.
+Chromium: la navegación local fue bloqueada por el entorno de pruebas; validar visualmente en la computadora del laboratorio.

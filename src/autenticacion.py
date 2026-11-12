@@ -145,3 +145,77 @@ class AutenticacionService:
             rows = con.execute('''SELECT id,usuario,nombre,rol,doctor_id,paciente_id,activo
                                   FROM usuarios ORDER BY id''').fetchall()
         return [dict(row) for row in rows]
+
+    @staticmethod
+    def _datos_cuenta(usuario, nombre, rol, password, doctor_id=None, paciente_id=None, requerir_clave=True):
+        usuario = str(usuario or '').strip().lower()
+        nombre = str(nombre or '').strip()
+        rol = str(rol or '').strip()
+        if not (3 <= len(usuario) <= 40) or not all(c.isalnum() or c in '._-' for c in usuario):
+            raise ReglaNegocioError('Usuario: 3 a 40 caracteres, letras, números, puntos o guiones')
+        if not 2 <= len(nombre) <= 100:
+            raise ReglaNegocioError('Nombre: 2 a 100 caracteres')
+        if rol not in ROLES:
+            raise ReglaNegocioError('Rol no válido')
+        if requerir_clave and (not isinstance(password,str) or not 8 <= len(password) <= 128):
+            raise ReglaNegocioError('La contraseña debe tener entre 8 y 128 caracteres')
+        if rol == 'doctor' and not doctor_id:
+            raise ReglaNegocioError('Selecciona el médico de esta cuenta')
+        if rol == 'paciente' and paciente_id is None:
+            raise ReglaNegocioError('Selecciona el paciente de esta cuenta')
+        if rol != 'doctor': doctor_id = None
+        if rol != 'paciente': paciente_id = None
+        return usuario,nombre,rol,doctor_id,paciente_id
+
+    def crear_usuario(self, usuario, nombre, rol, password, doctor_id=None, paciente_id=None):
+        usuario,nombre,rol,doctor_id,paciente_id=self._datos_cuenta(usuario,nombre,rol,password,doctor_id,paciente_id)
+        salt=secrets.token_bytes(16)
+        with self._con() as con:
+            try:
+                cursor=con.execute('''INSERT INTO usuarios(usuario,nombre,rol,salt,password_hash,doctor_id,paciente_id)
+                                      VALUES (?,?,?,?,?,?,?)''',
+                                   (usuario,nombre,rol,salt,self._hash(password,salt),doctor_id,paciente_id))
+                return {'ok':True,'id':cursor.lastrowid}
+            except sqlite3.IntegrityError as exc:
+                raise ReglaNegocioError('Usuario repetido o médico/paciente inexistente') from exc
+
+    def actualizar_usuario(self, user_id, usuario, nombre, rol, password=None, doctor_id=None, paciente_id=None):
+        try: user_id=int(user_id)
+        except (ValueError,TypeError) as exc: raise ReglaNegocioError('ID de usuario inválido') from exc
+        usuario,nombre,rol,doctor_id,paciente_id=self._datos_cuenta(usuario,nombre,rol,password,doctor_id,paciente_id,False)
+        if password is not None and password != '' and (not isinstance(password,str) or not 8<=len(password)<=128):
+            raise ReglaNegocioError('La contraseña debe tener entre 8 y 128 caracteres')
+        with self._con() as con:
+            previous=con.execute('SELECT rol FROM usuarios WHERE id=?',(user_id,)).fetchone()
+            if previous is None: raise ReglaNegocioError('Usuario no encontrado')
+            if previous['rol']=='administrador' and rol!='administrador':
+                n=con.execute("SELECT COUNT(*) FROM usuarios WHERE rol='administrador' AND activo=1").fetchone()[0]
+                if n<=1: raise ReglaNegocioError('Debe quedar al menos un administrador')
+            try:
+                con.execute('UPDATE usuarios SET usuario=?,nombre=?,rol=?,doctor_id=?,paciente_id=? WHERE id=?',
+                            (usuario,nombre,rol,doctor_id,paciente_id,user_id))
+                if password:
+                    salt=secrets.token_bytes(16)
+                    con.execute('UPDATE usuarios SET salt=?,password_hash=? WHERE id=?',
+                                (salt,self._hash(password,salt),user_id))
+            except sqlite3.IntegrityError as exc:
+                raise ReglaNegocioError('Usuario repetido o médico/paciente inexistente') from exc
+        with self._lock:
+            self._sesiones={t:value for t,value in self._sesiones.items() if value[0]!=user_id}
+        return {'ok':True,'id':user_id}
+
+    def eliminar_usuario(self, user_id, solicitante_id=None):
+        try: user_id=int(user_id)
+        except (ValueError,TypeError) as exc: raise ReglaNegocioError('ID de usuario inválido') from exc
+        if solicitante_id==user_id:
+            raise ReglaNegocioError('No puedes eliminar tu propia cuenta')
+        with self._con() as con:
+            row=con.execute('SELECT rol FROM usuarios WHERE id=?',(user_id,)).fetchone()
+            if row is None: raise ReglaNegocioError('Usuario no encontrado')
+            if row['rol']=='administrador':
+                count=con.execute("SELECT COUNT(*) FROM usuarios WHERE rol='administrador' AND activo=1").fetchone()[0]
+                if count<=1: raise ReglaNegocioError('Debe quedar al menos un administrador')
+            con.execute('DELETE FROM usuarios WHERE id=?',(user_id,))
+        with self._lock:
+            self._sesiones={t:value for t,value in self._sesiones.items() if value[0]!=user_id}
+        return {'ok':True,'id':user_id}

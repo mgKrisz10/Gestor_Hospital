@@ -194,7 +194,7 @@ class HospitalService:
             raise ReglaNegocioError('Nombre y especialidad deben tener al menos 3 caracteres')
         with self._conexion() as con:
             try:
-                con.execute('INSERT INTO doctores VALUES (?,?,?)', (doctor_id, nombre, especialidad))
+                con.execute('INSERT INTO doctores(id,nombre,especialidad) VALUES (?,?,?)', (doctor_id, nombre, especialidad))
             except sqlite3.IntegrityError as exc:
                 raise ReglaNegocioError('Ya existe un médico con ese ID') from exc
         return {'ok': True, 'doctor': asdict(Doctor(doctor_id, nombre, especialidad))}
@@ -206,7 +206,7 @@ class HospitalService:
                     'citas_programadas': con.execute("SELECT COUNT(*) FROM citas WHERE estado='programada'").fetchone()[0],
                     'citas_canceladas': con.execute("SELECT COUNT(*) FROM citas WHERE estado='cancelada'").fetchone()[0]}
 
-    def agendar(self, doctor_id, fecha, inicio, duracion, paciente_nombre='', paciente_telefono='', paciente_id=None):
+    def agendar(self, doctor_id, fecha, inicio, duracion, paciente_nombre='', paciente_telefono='', paciente_id=None, paciente_correo=''):
         fecha = self._fecha(fecha)
         inicio = self._entero(inicio, 'Inicio')
         duracion = self._entero(duracion, 'Duración')
@@ -239,7 +239,7 @@ class HospitalService:
                 raise
         return {'ok': True, 'id': cita_id, 'paciente_id': paciente_id, 'estado': 'programada'}
 
-    def cancelar(self, cita_id):
+    def cancelar(self, cita_id, motivo="Cancelada por recepción"):
         cita_id = self._entero(cita_id, 'ID de cita')
         with self._conexion() as con:
             con.execute('BEGIN IMMEDIATE')

@@ -10,7 +10,8 @@ from urllib.parse import parse_qs, urlparse
 
 from .autenticacion import AutenticacionService, AccesoDenegado, SinSesion
 from .gestor_citas import Cita, HORARIO_LABORAL, buscar_disponibilidad, formatear_hora, resultado_a_dict
-from .mvp import HospitalService, ReglaNegocioError
+from .operaciones_extra import HospitalService
+from .mvp import ReglaNegocioError
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / 'frontend'
@@ -99,6 +100,13 @@ class Handler(BaseHTTPRequestHandler):
                 svc = servicio()
                 if parsed.path == '/api/mvp/auth/me':
                     return self.enviar(200, {'ok':True, 'usuario':asdict(usuario)})
+                if parsed.path == '/api/mvp/doctores/admin':
+                    auth.exigir(usuario,'administrador')
+                    return self.enviar(200, {'ok':True,'doctores':svc.listar_doctores_todos()})
+                partes=parsed.path.strip('/').split('/')
+                if len(partes)==5 and partes[:3]==['api','mvp','doctores'] and partes[4]=='impacto':
+                    auth.exigir(usuario,'administrador')
+                    return self.enviar(200,svc.impacto_doctor(partes[3]))
                 if parsed.path == '/api/mvp/doctores':
                     return self.enviar(200, {'ok':True, 'doctores':svc.listar_doctores()})
                 if parsed.path == '/api/mvp/disponibilidad':
@@ -115,6 +123,26 @@ class Handler(BaseHTTPRequestHandler):
                     if usuario.rol == 'paciente':
                         citas = [c for c in citas if c['paciente_id'] == usuario.paciente_id]
                     return self.enviar(200, {'ok':True, 'citas':citas})
+                if parsed.path == '/api/mvp/pacientes':
+                    auth.exigir(usuario,'administrador','recepcion')
+                    return self.enviar(200, {'ok':True,'pacientes':svc.listar_pacientes()})
+                if parsed.path == '/api/mvp/citas-proximas':
+                    auth.exigir(usuario,'paciente')
+                    return self.enviar(200, {'ok':True,'citas':svc.proximas_citas(usuario.paciente_id)})
+                if parsed.path == '/api/mvp/ausencias':
+                    auth.exigir(usuario,'administrador','doctor')
+                    return self.enviar(200, {'ok':True,'ausencias':svc.listar_ausencias(usuario.doctor_id if usuario.rol=='doctor' else None)})
+                if parsed.path == '/api/mvp/notificaciones':
+                    auth.exigir(usuario,'paciente')
+                    return self.enviar(200, {'ok':True,'notificaciones':svc.notificaciones(usuario.paciente_id)})
+                if parsed.path.startswith('/api/mvp/confirmacion/'):
+                    auth.exigir(usuario,'administrador','recepcion','doctor','paciente')
+                    r=svc.confirmacion(parsed.path.rsplit('/',1)[-1])
+                    if usuario.rol=='doctor' and r['doctor_id']!=usuario.doctor_id:
+                        raise AccesoDenegado('No tienes acceso a esa cita')
+                    if usuario.rol=='paciente' and r['paciente_id']!=usuario.paciente_id:
+                        raise AccesoDenegado('No tienes acceso a esa cita')
+                    return self.enviar(200, {'ok':True,'confirmacion':r})
                 if parsed.path == '/api/mvp/usuarios':
                     auth.exigir(usuario,'administrador')
                     return self.enviar(200, {'ok':True,'usuarios':auth.usuarios()})
@@ -171,15 +199,56 @@ class Handler(BaseHTTPRequestHandler):
                 auth.exigir(usuario,'administrador','recepcion')
                 return self.enviar(201,svc.agendar(data.get('doctor_id'),data.get('fecha'),
                     data.get('inicio'),data.get('duracion'),data.get('paciente_nombre'),
-                    data.get('paciente_telefono',''),data.get('paciente_id')))
+                    data.get('paciente_telefono',''),data.get('paciente_id'),data.get('paciente_correo','')))
+            if parsed.path == '/api/mvp/pacientes':
+                auth.exigir(usuario,'administrador','recepcion')
+                return self.enviar(201,svc.registrar_paciente(data.get('nombre'),data.get('telefono',''),data.get('correo','')))
+            if parsed.path == '/api/mvp/ausencias':
+                auth.exigir(usuario,'doctor','administrador')
+                doctor_id=usuario.doctor_id if usuario.rol=='doctor' else data.get('doctor_id')
+                return self.enviar(201,svc.notificar_ausencia(doctor_id,data.get('fecha'),data.get('motivo')))
+            if parsed.path == '/api/mvp/usuarios':
+                auth.exigir(usuario,'administrador')
+                return self.enviar(201,auth.crear_usuario(data.get('usuario'),data.get('nombre'),
+                    data.get('rol'),data.get('password'),data.get('doctor_id'),data.get('paciente_id')))
             if parsed.path == '/api/mvp/doctores':
                 auth.exigir(usuario,'administrador')
                 return self.enviar(201,svc.registrar_doctor(data.get('id'),
                                    data.get('nombre'),data.get('especialidad')))
             parts=parsed.path.strip('/').split('/')
+            if len(parts)==5 and parts[:3]==['api','mvp','doctores'] and parts[4]=='baja':
+                auth.exigir(usuario,'administrador')
+                return self.enviar(200,svc.dar_baja_doctor(parts[3]))
+            if len(parts)==5 and parts[:3]==['api','mvp','doctores'] and parts[4]=='reactivar':
+                auth.exigir(usuario,'administrador')
+                return self.enviar(200,svc.reactivar_doctor(parts[3]))
+            if len(parts)==5 and parts[:3]==['api','mvp','ausencias'] and parts[4]=='levantar':
+                auth.exigir(usuario,'administrador','doctor')
+                # Un médico no puede levantar una ausencia de otro.
+                if usuario.rol=='doctor':
+                    ausencias=svc.listar_ausencias(usuario.doctor_id)
+                    if not any(str(a['id'])==parts[3] for a in ausencias):
+                        raise AccesoDenegado('No puedes modificar la ausencia de otro médico')
+                return self.enviar(200,svc.levantar_ausencia(parts[3]))
+            if len(parts)==5 and parts[:3]==['api','mvp','citas'] and parts[4]=='reprogramar':
+                auth.exigir(usuario,'administrador','recepcion')
+                return self.enviar(200,svc.reprogramar(parts[3],data.get('doctor_id'),
+                    data.get('fecha'),data.get('inicio'),data.get('duracion')))
+            if len(parts)==5 and parts[:3]==['api','mvp','usuarios'] and parts[4]=='editar':
+                auth.exigir(usuario,'administrador')
+                if str(usuario.id)==parts[3] and data.get('rol')!='administrador':
+                    raise ReglaNegocioError('No puedes quitarte el perfil de administrador')
+                return self.enviar(200,auth.actualizar_usuario(parts[3],data.get('usuario'),data.get('nombre'),
+                    data.get('rol'),data.get('password'),data.get('doctor_id'),data.get('paciente_id')))
+            if len(parts)==5 and parts[:3]==['api','mvp','usuarios'] and parts[4]=='eliminar':
+                auth.exigir(usuario,'administrador')
+                return self.enviar(200,auth.eliminar_usuario(parts[3],usuario.id))
+            if len(parts)==5 and parts[:3]==['api','mvp','notificaciones'] and parts[4]=='leida':
+                auth.exigir(usuario,'paciente')
+                return self.enviar(200,svc.marcar_leida(usuario.paciente_id,parts[3]))
             if len(parts)==5 and parts[:3]==['api','mvp','citas'] and parts[4]=='cancelar':
                 auth.exigir(usuario,'administrador','recepcion')
-                return self.enviar(200,svc.cancelar(parts[3]))
+                return self.enviar(200,svc.cancelar(parts[3],data.get('motivo','Cancelada por recepción')))
             return self.enviar(404,{'ok':False,'error':'Ruta desconocida'})
         except Exception as exc:
             self._error(exc)

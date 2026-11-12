@@ -1,16 +1,10 @@
-SEGUNDO PARCIAL — CAMBIOS
+GESTOR DE CITAS MÉDICAS - SEGUNDO PARCIAL
 
-Se agregó inicio de sesión con cinco cuentas y permisos distintos.
-El administrador registra médicos y consulta el resumen.
-Recepción registra y cancela citas.
-Doctor y paciente consultan sus citas.
-El personal autorizado únicamente ve médicos y horarios.
-Las citas se guardan en SQLite.
-Se conservó el cálculo de disponibilidad del primer parcial.
-
-AJUSTE DE INTERFAZ
-Se simplificaron los textos, encabezados y mensajes sin cambiar las
-operaciones ni los permisos del sistema.
-
-PENDIENTE
-Reprogramación, notificaciones y edición de cuentas.
+Las cinco cuentas disponen de funciones según su rol. Citas, médicos, pacientes y notificaciones se guardan en SQLite.
+Se añadieron las pruebas de laboratorio:
+- Evitar la reserva de un horario ocupado.
+- Liberar el horario de una cita cancelada y permitir una nueva reserva.
+- Impedir registrar o reprogramar citas en días anteriores.
+- Dar de baja médicos con una ventana de confirmación, cancelar citas futuras y conservar el historial. La reactivación no recupera citas canceladas.
+- Levantar una ausencia médica para admitir nuevas reservas.
+Se añadieron nueve pruebas específicas y se pasó el conjunto de 74 pruebas.
