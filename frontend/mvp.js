@@ -3,6 +3,7 @@
 const $ = id => document.getElementById(id);
 let token = null;
 let usuario = null;
+let modoAccesoDoctor = false;
 let seleccionado = null;
 let pacienteDemoId = null;
 let editingAppointment = null;
@@ -75,6 +76,17 @@ async function api(path, method='GET', body=null) {
   return data;
 }
 const post = (path, body={}) => api(path,'POST',body);
+function mostrarAccesoDoctor(activo) {
+  modoAccesoDoctor=activo;
+  $('doctor-login').hidden=!activo;
+  $('user-login').hidden=activo;
+  $('username').required=!activo;
+  $('doctor-id-login').required=activo;
+  $('password').value='';
+  $('login-error').hidden=true;
+  if(activo) $('doctor-id-login').focus();
+  else $('username').focus();
+}
 function cerrarSesion(mostrarMensaje=true) {
   const viejo = token;
   token = null; usuario = null; seleccionado = null; pacienteDemoId = null;
@@ -84,6 +96,7 @@ function cerrarSesion(mostrarMensaje=true) {
   $('logout').hidden = true;
   $('password').value = '';
   $('login-error').hidden = true;
+  mostrarAccesoDoctor(false);
   ['patients-area','patient-calendar-area','notifications-area','users-editor','reprogram-area','directory-area'].forEach(id=>$(id).hidden=true);
   if (mostrarMensaje && viejo) fetch('/api/mvp/auth/logout',{method:'POST', headers:{Authorization:`Bearer ${viejo}`,'Content-Type':'application/json'},body:'{}'}).catch(()=>{});
 }
@@ -92,7 +105,9 @@ async function iniciarSesion(event) {
   $('login-error').hidden = true;
   $('login-button').disabled = true;
   try {
-    const data = await post('/api/mvp/auth/login',{usuario:$('username').value,password:$('password').value});
+    const credenciales=modoAccesoDoctor?{doctor_id:$('doctor-id-login').value.trim().toUpperCase(), password:$('password').value}:
+      {usuario:$('username').value,password:$('password').value};
+    const data = await post('/api/mvp/auth/login',credenciales);
     token = data.token; usuario = data.usuario;
     $('password').value = '';
     $('login-screen').hidden = true;
@@ -100,7 +115,9 @@ async function iniciarSesion(event) {
     $('logout').hidden = false;
     $('user-pill').hidden = false;
     $('user-pill').textContent = `${usuario.nombre} · ${rolNombre[usuario.rol]}`;
-    $('dashboard-heading').textContent = rolInfo[usuario.rol][0];
+    $('dashboard-heading').textContent = usuario.rol==='doctor'?`${usuario.nombre} · ${usuario.doctor_id}`:rolInfo[usuario.rol][0];
+    $('patient-key').textContent=usuario.clave_paciente?`Clave de paciente: ${usuario.clave_paciente}`:'';
+    $('patient-key').hidden=usuario.rol!=='paciente';
     $('dashboard-description').textContent = rolInfo[usuario.rol][1];
     const puedeGestionar = ['administrador','recepcion'].includes(usuario.rol);
     const soloDoctor = usuario.rol === 'doctor';
@@ -230,7 +247,7 @@ async function reservar() {
     const respuesta=await post('/api/mvp/citas',data);
     $('demo-patient').checked=false;alternarPacienteDemo();
     await cargarPacientes();await cargarAgenda();await consultar();
-    estado(respuesta.confirmacion || `Cita #${respuesta.id} registrada.`);
+    estado(`${respuesta.confirmacion || `Cita #${respuesta.id} registrada.`} Clave: ${respuesta.clave_paciente}`);
     if(usuario.rol==='administrador')await cargarAdministrador();
   } catch(e){estado(e.message,true);await ventana('No se pudo agendar la cita',e.message);await consultar();} finally {$('book').disabled=seleccionado===null;}
 }
@@ -244,7 +261,7 @@ async function cargarCalendarioPaciente() {
   try {
     // El servidor devuelve exclusivamente las citas vinculadas a esta cuenta.
     const r=await api('/api/mvp/citas');
-    citasCalendario=r.citas.filter(c=>c.estado==='programada');
+    citasCalendario=r.citas.filter(c=>['programada','pendiente_reagendar'].includes(c.estado));
     pintarCalendarioPaciente();
   }catch(e){estado(e.message,true)}
 }
@@ -270,7 +287,7 @@ function pintarCalendarioPaciente() {
     boton.append(diaNum);
     for(const cita of citas.slice(0,2)){
       const nota=document.createElement('span');nota.className='calendar-appointment';
-      nota.textContent=`${hora(cita.inicio)} · ${cita.doctor_nombre}`;
+      nota.textContent=cita.estado==='pendiente_reagendar'?'Pendiente de reagendar':`${hora(cita.inicio)} · ${cita.doctor_nombre}`;
       nota.title=`${hora(cita.inicio)} - ${hora(cita.inicio+cita.duracion)} | ${cita.doctor_nombre}`;
       boton.append(nota);
     }
@@ -286,8 +303,8 @@ function pintarCalendarioPaciente() {
   if(!citasDia.length){const nota=document.createElement('p');nota.className='muted';nota.textContent='No tienes citas para esta fecha.';caja.append(nota);return;}
   for(const cita of citasDia.sort((a,b)=>a.inicio-b.inicio)){
     const evento=document.createElement('div');evento.className='calendar-event';
-    const horario=document.createElement('strong');horario.textContent=`${hora(cita.inicio)} – ${hora(cita.inicio+cita.duracion)}`;
-    const medico=document.createElement('span');medico.textContent=cita.doctor_nombre;
+    const horario=document.createElement('strong');horario.textContent=cita.estado==='pendiente_reagendar'?'Por asignar nuevo horario':`${hora(cita.inicio)} – ${hora(cita.inicio+cita.duracion)}`;
+    const medico=document.createElement('span');medico.textContent=cita.estado==='pendiente_reagendar'?`Médico anterior: ${cita.doctor_nombre}`:cita.doctor_nombre;
     const estadoCita=document.createElement('small');estadoCita.textContent=cita.estado==='pendiente_reagendar'?'Pendiente de reagendar':cita.estado==='cancelada'?'Cancelada':'Programada';
     evento.append(horario,medico,estadoCita);caja.append(evento);
   }
@@ -414,13 +431,13 @@ async function cargarPacientes(){
   const data=await api('/api/mvp/pacientes');listaPacientes=data.pacientes;
   $('patients').replaceChildren(...listaPacientes.map(p=>{
     const tr=document.createElement('tr');
-    [p.id,p.nombre,p.telefono,p.correo].forEach(value=>{const td=document.createElement('td');td.textContent=value;tr.append(td)});
+    [p.clave,p.nombre,p.telefono,p.correo].forEach(value=>{const td=document.createElement('td');td.textContent=value;tr.append(td)});
     return tr;
   }));
   const selected=$('existing-patient').value;
-  $('existing-patient').replaceChildren(new Option('Nuevo paciente',''),...listaPacientes.map(p=>new Option(`${p.id} · ${p.nombre}`,p.id)));
+  $('existing-patient').replaceChildren(new Option('Nuevo paciente',''),...listaPacientes.map(p=>new Option(`${p.clave} · ${p.nombre}`,p.id)));
   if(listaPacientes.some(p=>String(p.id)===selected))$('existing-patient').value=selected;
-  $('account-patient').replaceChildren(new Option('Seleccionar',''),...listaPacientes.map(p=>new Option(`${p.id} · ${p.nombre}`,p.id)));
+  $('account-patient').replaceChildren(new Option('Seleccionar',''),...listaPacientes.map(p=>new Option(`${p.clave} · ${p.nombre}`,p.id)));
   actualizarPacienteSeleccionado();
 }
 function actualizarPacienteSeleccionado(){
@@ -439,7 +456,7 @@ async function registrarPaciente(event){
     });
     $('patient-form').reset();await cargarPacientes();
     $('existing-patient').value=String(r.paciente.id);actualizarPacienteSeleccionado();
-    estado(`Paciente #${r.paciente.id} registrado.`);
+    estado(`Paciente ${r.paciente.clave} registrado.`);
   }catch(e){estado(e.message,true)}
 }
 function abrirReprogramacion(c){
@@ -511,17 +528,21 @@ async function guardarUsuario(event){
   }catch(e){estado(e.message,true)}
 }
 async function eliminarUsuario(p){
-  if(!confirm(`¿Eliminar la cuenta ${p.usuario}?`))return;
+  const aviso=p.rol==='doctor'?' Si es la última cuenta de ese médico, sus citas futuras quedarán pendientes de reagendar.':'';
+  if(!confirm(`¿Eliminar la cuenta ${p.usuario}?${aviso}`))return;
   try{await post(`/api/mvp/usuarios/${p.id}/eliminar`,{});await cargarAdministrador();estado('Cuenta eliminada.');}
   catch(e){estado(e.message,true)}
 }
 $('login-form').addEventListener('submit',iniciarSesion);
 $('demo-grid').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  if(b.dataset.demo==='doctor'){mostrarAccesoDoctor(true);return;}
+  mostrarAccesoDoctor(false);
   $('username').value=b.dataset.demo;
   $('password').value='Demo2026!';
   $('username').focus();
   $('login-error').hidden=true;
 }));
+$('doctor-login-back').addEventListener('click',()=>mostrarAccesoDoctor(false));
 $('logout').addEventListener('click',()=>cerrarSesion());
 ['date','doctor','duration'].forEach(id=>$(id).addEventListener('change',resetSeleccion));
 $('search').addEventListener('click',consultar);

@@ -46,3 +46,15 @@ El cambio de estado se migra automáticamente al iniciar el servidor con una bas
 ## Calendario del paciente
 
 Iniciar sesión como `paciente`. Comprobar que aparece únicamente el calendario de sus citas: navegar entre meses, seleccionar el día con una cita, verificar horario y nombre del médico. Las citas de otros pacientes y las canceladas no deben mostrarse como consultas programadas.
+
+## Identificación y empalmes entre médicos (18 de noviembre)
+
+- Selecciona **Doctor** en la pantalla inicial y entra con ID `MED001` y contraseña `Demo2026!`. Repite con `MED002`. Debes ver una sola agenda vinculada a cada identificador.
+- Registra un paciente en Recepción y anota su clave `PAC-...`. También puedes usar la cuenta `paciente` y ver la clave que aparece en el calendario.
+- Reserva una cita para ese paciente con `MED001` de 09:00 a 10:00, en una fecha futura. Intenta reservar con `MED002` de 09:30 a 10:00 usando **la misma clave de paciente**. Debe aparecer un error por horario del paciente.
+- Haz otra reserva de 10:00 a 10:30: es válida. Intenta reprogramarla a las 09:45: debe rechazarse y conservar el horario anterior.
+- Entra como `consulta` (personal autorizado): puede consultar directorio y horarios, pero no pacientes ni agendas completas.
+- Da de baja al médico con una cita futura. En el calendario del paciente debe aparecer **Pendiente de reagendar**. El folio y la clave de paciente se conservan.
+- También se prueba eliminar la última cuenta médica desde Administrador: debe dar de baja al médico y dejar pendientes sus citas futuras.
+
+Las claves de paciente se derivan de la identidad interna, no son contraseñas. Para entrar como paciente se requiere también la contraseña correcta.

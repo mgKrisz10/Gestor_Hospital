@@ -17,3 +17,12 @@ Conviene respaldar data/hospital.sqlite3 antes de actualizar.
 
 Se verificaron 85 pruebas automatizadas. La navegación visual de Chromium no
 pudo completarse en este entorno; verificar la interfaz en la computadora.
+
+CORRECCIÓN DEL 18 DE NOVIEMBRE DE 2026
+- Un único acceso "Doctor" por ID y contraseña.
+- Clave PAC-000001 única por paciente, visible en el calendario y en recepción.
+- Restricción de citas simultáneas para el mismo paciente con cualquier doctor.
+- Reprogramación revisa también disponibilidad del paciente.
+- El personal autorizado consulta directorio/disponibilidad sin ver pacientes.
+- Citas de médico dado de baja: "Pendiente de reagendar" en el calendario.
+- Al eliminar la última cuenta médica se da de baja al médico y se preservan citas para reagendar.

@@ -100,3 +100,36 @@ La primera ejecución con una base antigua actualiza el esquema de `citas` para 
 - **Personal autorizado:** conserva su vista de consulta del directorio médico.
 
 Cuentas de médicos de ejemplo: `doctora` (MED001), `doctor_carlos` (MED002), `doctora_sofia` (MED003). Las tres usan `Demo2026!`. Al iniciar el servidor, las dos cuentas nuevas también se incorporan a una base SQLite que ya existiera, sin eliminar datos previos.
+
+## Identificación de médicos y pacientes (actualización)
+
+El acceso de **Doctor** es único en la pantalla inicial. Al seleccionarlo,
+se solicita el identificador médico (`MED001`, `MED002`, `MED003`) y la contraseña.
+La cuenta se resuelve en el servidor y cada doctor ve solamente su agenda.
+Los usuarios médicos anteriores (`doctora`, `doctor_carlos`, `doctora_sofia`)
+se conservan para no perder accesos existentes.
+
+Cada paciente tiene una **clave única** en formato `PAC-000001`, derivada de su
+identificador primario de SQLite. Esa clave se ve en el calendario y en el
+catálogo de pacientes. Puede utilizarse para iniciar sesión con su contraseña,
+pero **la clave no sustituye la autenticación**. Las cuentas de pacientes
+quedan vinculadas a un registro concreto, independientemente de que haya otras
+personas con el mismo nombre.
+
+Al agendar o reprogramar, se revisa el horario del doctor **y el del paciente**.
+Dos médicos distintos no pueden atender al mismo paciente al mismo tiempo.
+Se comprueban empalmes parciales, no solo horas de inicio idénticas.
+
+El perfil **Personal autorizado** sirve para coordinación: puede consultar
+el directorio de médicos y buscar disponibilidad, pero no puede ver pacientes
+ni modificar citas o cuentas. Estas restricciones se verifican en Python.
+
+Una baja de médico cambia sus citas futuras a **Pendiente de reagendar**.
+El calendario del paciente muestra esas citas con el estado correcto.
+Si se elimina la **última cuenta de un doctor**, también se da de baja su
+registro y sus futuras citas quedan pendientes; se conservan los folios.
+Las instalaciones anteriores se ajustan al iniciar, sin borrar la base de datos.
+
+**Antes de actualizar:** respalda `data/hospital.sqlite3`, cierra el servidor,
+actualiza la rama, inicia nuevamente `python app.py` y recarga el navegador
+con Ctrl+F5.

@@ -9,7 +9,7 @@ from datetime import date, datetime, timezone, timedelta
 from email.message import EmailMessage
 from dataclasses import asdict
 
-from .gestor_citas import HORARIO_LABORAL, formatear_hora
+from .gestor_citas import Cita, HORARIO_LABORAL, formatear_hora
 from .mvp import HospitalService as BaseHospital, Doctor, ReglaNegocioError
 
 
@@ -90,6 +90,12 @@ class HospitalService(BaseHospital):
             conn.execute('''UPDATE citas SET estado='pendiente_reagendar'
                 WHERE estado='cancelada' AND cancelacion_motivo='Baja del médico'
                 AND fecha>=?''', (self.hoy().isoformat(),))
+            # Reparar agendas antiguas con un médico ya dado de baja.
+            conn.execute('''UPDATE citas SET estado='pendiente_reagendar',
+                cancelacion_motivo='Baja del médico'
+                WHERE estado='programada' AND fecha>=?
+                AND doctor_id IN (SELECT id FROM doctores WHERE activo=0)''',
+                (self.hoy().isoformat(),))
         finally:
             conn.close()
 
@@ -234,16 +240,37 @@ class HospitalService(BaseHospital):
             raise ReglaNegocioError('Correo electrónico inválido')
         return nombre, telefono, correo
 
+    @staticmethod
+    def clave_paciente(paciente_id):
+        # Identificador estable y único basado en la clave primaria SQLite. No es una contraseña.
+        return f'PAC-{int(paciente_id):06d}'
+
+    @classmethod
+    def _citas_paciente(cls, con, paciente_id, fecha, excluir_id=None):
+        sql = "SELECT inicio,duracion FROM citas WHERE paciente_id=? AND fecha=? AND estado='programada'"
+        args = [paciente_id, fecha]
+        if excluir_id is not None:
+            sql += ' AND id<>?'
+            args.append(excluir_id)
+        return [Cita(r['inicio'],r['duracion']) for r in con.execute(sql, args)]
+
+    @classmethod
+    def _comprobar_paciente_libre(cls, con, paciente_id, fecha, inicio, duracion, excluir_id=None):
+        if cls._conflicto(cls._citas_paciente(con,paciente_id,fecha,excluir_id),inicio,duracion):
+            raise ReglaNegocioError('El paciente ya tiene otra cita durante ese horario')
+
     def registrar_paciente(self, nombre, telefono='', correo=''):
         nombre, telefono, correo = self._datos_paciente(nombre, telefono, correo)
         with self._conexion() as con:
             row_id = con.execute('INSERT INTO pacientes(nombre,telefono,correo) VALUES (?,?,?)',
                                  (nombre, telefono, correo)).lastrowid
-        return {'ok':True,'paciente':{'id':row_id,'nombre':nombre,'telefono':telefono,'correo':correo}}
+        return {'ok':True,'paciente':{'id':row_id,'clave':self.clave_paciente(row_id),
+                'nombre':nombre,'telefono':telefono,'correo':correo}}
 
     def listar_pacientes(self):
         with self._conexion() as con:
-            return [dict(row) for row in con.execute('SELECT id,nombre,telefono,correo FROM pacientes ORDER BY id')]
+            return [dict(row, clave=self.clave_paciente(row['id'])) for row in
+                    con.execute('SELECT id,nombre,telefono,correo FROM pacientes ORDER BY id')]
 
     @staticmethod
     def _comprobar_asistencia(con, doctor_id, fecha):
@@ -337,6 +364,7 @@ class HospitalService(BaseHospital):
                                         (paciente_id,)).fetchone()
                     if patient is None: raise ReglaNegocioError('Paciente no encontrado')
                     nombre,telefono,correo=patient['nombre'],patient['telefono'],patient['correo']
+                self._comprobar_paciente_libre(con,paciente_id,fecha,inicio,duracion)
                 medico=con.execute('SELECT nombre FROM doctores WHERE id=?',(doctor_id,)).fetchone()['nombre']
                 cita_id=con.execute('INSERT INTO citas(doctor_id,paciente_id,fecha,inicio,duracion) VALUES (?,?,?,?,?)',
                                     (doctor_id,paciente_id,fecha,inicio,duracion)).lastrowid
@@ -347,7 +375,8 @@ class HospitalService(BaseHospital):
                 con.execute('ROLLBACK')
                 raise
         envio=self._intentar_correo(correo,'Confirmación de cita',mensaje)
-        return {'ok':True,'id':cita_id,'paciente_id':paciente_id,'estado':'programada',
+        return {'ok':True,'id':cita_id,'paciente_id':paciente_id,
+                'clave_paciente':self.clave_paciente(paciente_id),'estado':'programada',
                 'confirmacion':mensaje,'correo':envio}
 
     def reprogramar(self, cita_id, doctor_id, fecha, inicio, duracion):
@@ -370,6 +399,7 @@ class HospitalService(BaseHospital):
                 ocupadas=self._ocupadas(con,doctor_id,fecha,excluir_id=cita_id)
                 if self._conflicto(ocupadas,inicio,duracion):
                     raise ReglaNegocioError('El nuevo horario ya está ocupado')
+                self._comprobar_paciente_libre(con,cita['paciente_id'],fecha,inicio,duracion,excluir_id=cita_id)
                 con.execute("""UPDATE citas SET doctor_id=?,fecha=?,inicio=?,duracion=?,
                             estado='programada',cancelacion_motivo='' WHERE id=?""",
                             (doctor_id,fecha,inicio,duracion,cita_id))

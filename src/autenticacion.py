@@ -36,6 +36,7 @@ class Usuario:
     rol: str
     doctor_id: str | None
     paciente_id: int | None
+    clave_paciente: str | None = None
 
 
 class AutenticacionService:
@@ -109,15 +110,38 @@ class AutenticacionService:
 
     @staticmethod
     def _public(row: sqlite3.Row):
+        pid = row['paciente_id']
         return Usuario(row['id'], row['usuario'], row['nombre'], row['rol'],
-                       row['doctor_id'], row['paciente_id'])
+                       row['doctor_id'], pid, f'PAC-{pid:06d}' if pid is not None else None)
 
-    def login(self, usuario: str, password: str):
-        if not isinstance(usuario, str) or not isinstance(password, str):
+    def login(self, usuario: str | None, password: str, doctor_id: str | None = None):
+        if not isinstance(password, str):
             raise SinSesion('Usuario o contraseña incorrectos')
         with self._con() as con:
-            row = con.execute('SELECT * FROM usuarios WHERE usuario=? AND activo=1',
-                              (usuario.strip().lower(),)).fetchone()
+            if doctor_id is not None:
+                if not isinstance(doctor_id, str) or not doctor_id.strip():
+                    raise SinSesion('ID de médico o contraseña incorrectos')
+                encontrados = con.execute('''SELECT u.* FROM usuarios u
+                    JOIN doctores d ON d.id=u.doctor_id
+                    WHERE u.rol='doctor' AND u.doctor_id=? AND u.activo=1 AND d.activo=1''',
+                    (doctor_id.strip().upper(),)).fetchall()
+                if len(encontrados) > 1:
+                    raise SinSesion('Este médico tiene varias cuentas: entra con tu usuario personal')
+                row = encontrados[0] if encontrados else None
+            else:
+                if not isinstance(usuario, str):
+                    raise SinSesion('Usuario o contraseña incorrectos')
+                clave = usuario.strip().upper()
+                if clave.startswith('PAC-') and clave[4:].isdigit():
+                    # La clave identifica al registro, pero la contraseña sigue siendo necesaria.
+                    matches = con.execute('''SELECT * FROM usuarios WHERE rol='paciente'
+                        AND paciente_id=? AND activo=1''', (int(clave[4:]),)).fetchall()
+                    if len(matches)>1:
+                        raise SinSesion('La clave corresponde a varias cuentas: entra con tu usuario personal')
+                    row = matches[0] if matches else None
+                else:
+                    row = con.execute('SELECT * FROM usuarios WHERE usuario=? AND activo=1',
+                                      (usuario.strip().lower(),)).fetchone()
         # Mismo mensaje para no revelar qué cuenta existe.
         if row is None or not hmac.compare_digest(self._hash(password, row['salt']), row['password_hash']):
             raise SinSesion('Usuario o contraseña incorrectos')
@@ -187,6 +211,9 @@ class AutenticacionService:
         usuario,nombre,rol,doctor_id,paciente_id=self._datos_cuenta(usuario,nombre,rol,password,doctor_id,paciente_id)
         salt=secrets.token_bytes(16)
         with self._con() as con:
+            if rol=='paciente' and con.execute('''SELECT 1 FROM usuarios
+                WHERE rol='paciente' AND paciente_id=? AND activo=1''',(paciente_id,)).fetchone():
+                raise ReglaNegocioError('Este paciente ya tiene una cuenta. Utiliza su clave de paciente')
             try:
                 cursor=con.execute('''INSERT INTO usuarios(usuario,nombre,rol,salt,password_hash,doctor_id,paciente_id)
                                       VALUES (?,?,?,?,?,?,?)''',
@@ -204,6 +231,10 @@ class AutenticacionService:
         with self._con() as con:
             previous=con.execute('SELECT rol FROM usuarios WHERE id=?',(user_id,)).fetchone()
             if previous is None: raise ReglaNegocioError('Usuario no encontrado')
+            if rol=='paciente' and con.execute('''SELECT 1 FROM usuarios
+                WHERE rol='paciente' AND paciente_id=? AND activo=1 AND id<>?''',
+                (paciente_id,user_id)).fetchone():
+                raise ReglaNegocioError('Este paciente ya tiene otra cuenta asociada')
             if previous['rol']=='administrador' and rol!='administrador':
                 n=con.execute("SELECT COUNT(*) FROM usuarios WHERE rol='administrador' AND activo=1").fetchone()[0]
                 if n<=1: raise ReglaNegocioError('Debe quedar al menos un administrador')

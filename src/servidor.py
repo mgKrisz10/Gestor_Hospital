@@ -157,6 +157,7 @@ class Handler(BaseHTTPRequestHandler):
                     # Identificador del paciente ficticio ligado a una cuenta de demostración.
                     demo = next(u for u in auth.usuarios() if u['usuario']=='paciente')
                     return self.enviar(200, {'ok':True,'paciente':{'id':demo['paciente_id'],
+                                                        'clave':f"PAC-{demo['paciente_id']:06d}",
                                                         'nombre':demo['nombre']}})
                 return self.enviar(404, {'ok':False, 'error':'Ruta desconocida'})
             if parsed.path == '/api/doctores':
@@ -189,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if parsed.path == '/api/mvp/auth/login':
                 data=self._json()
-                return self.enviar(200,autenticacion().login(data.get('usuario'), data.get('password')))
+                return self.enviar(200,autenticacion().login(data.get('usuario'), data.get('password'),data.get('doctor_id')))
             if not parsed.path.startswith('/api/mvp/'):
                 return self.enviar(404,{'ok':False,'error':'Ruta desconocida'})
             usuario=self._usuario()
@@ -245,6 +246,14 @@ class Handler(BaseHTTPRequestHandler):
                     data.get('rol'),data.get('password'),data.get('doctor_id'),data.get('paciente_id')))
             if len(parts)==5 and parts[:3]==['api','mvp','usuarios'] and parts[4]=='eliminar':
                 auth.exigir(usuario,'administrador')
+                target=next((u for u in auth.usuarios() if str(u['id'])==parts[3]),None)
+                if target and target['rol']=='doctor' and target['doctor_id']:
+                    restantes=[u for u in auth.usuarios() if u['rol']=='doctor'
+                        and u['doctor_id']==target['doctor_id'] and u['activo'] and u['id']!=target['id']]
+                    if not restantes and svc._doctor_activo(target['doctor_id']):
+                        # La última cuenta médica provoca la baja del doctor y deja
+                        # sus futuras citas pendientes de reagendar.
+                        svc.dar_baja_doctor(target['doctor_id'])
                 return self.enviar(200,auth.eliminar_usuario(parts[3],usuario.id))
             if len(parts)==5 and parts[:3]==['api','mvp','notificaciones'] and parts[4]=='leida':
                 auth.exigir(usuario,'paciente')
