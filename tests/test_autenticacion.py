@@ -29,9 +29,9 @@ class BaseHospitalTest:
         self.temp.cleanup()
 
 class AutenticacionTests(BaseHospitalTest, unittest.TestCase):
-    def test_cinco_cuentas_diferentes(self):
+    def test_cuatro_perfiles_diferentes(self):
         self.assertEqual({u['rol'] for u in self.auth.usuarios()}, {
-            'administrador', 'doctor', 'paciente', 'recepcion', 'personal_autorizado'})
+            'administrador', 'doctor', 'paciente', 'recepcion'})
 
     def test_credenciales_incorrectas(self):
         for username, pw in [('admin', 'incorrecto'), ('nadie', 'Demo2026!')]:
@@ -65,7 +65,7 @@ class AutenticacionTests(BaseHospitalTest, unittest.TestCase):
         original=self.auth.login('paciente','Demo2026!')['usuario']['paciente_id']
         another=AutenticacionService(self.db).login('paciente','Demo2026!')['usuario']['paciente_id']
         self.assertEqual(original, another)
-        self.assertEqual(len(self.auth.usuarios()),7)
+        self.assertEqual(len(self.auth.usuarios()),6)
 
     def test_doctor_agregado_y_duplicado(self):
         from src.mvp import ReglaNegocioError
@@ -93,7 +93,7 @@ class APIAutorizacionTests(BaseHospitalTest, unittest.TestCase):
         self.thread.start()
         self.url=f'http://127.0.0.1:{self.server.server_port}'
         self.tokens={}
-        for user in ('admin','doctora','paciente','recepcion','consulta'):
+        for user in ('admin','doctora','paciente','recepcion'):
             self.tokens[user]=self.auth.login(user,'Demo2026!')['token']
 
     def tearDown(self):
@@ -117,26 +117,28 @@ class APIAutorizacionTests(BaseHospitalTest, unittest.TestCase):
         self.assertEqual(self.call('/api/mvp/citas')[0],401)
         self.assertEqual(self.call('/api/mvp/doctores')[0],401)
 
-    def test_cinco_roles_login_http(self):
+    def test_cuatro_roles_login_http(self):
         roles=set()
         for user in self.tokens:
             status, data=self.call('/api/mvp/auth/me',user=user)
             self.assertEqual(status,200)
             roles.add(data['usuario']['rol'])
-        self.assertEqual(len(roles),5)
+        self.assertEqual(len(roles),4)
 
     def test_login_http_usuario_incorrecto(self):
         self.assertEqual(self.call('/api/mvp/auth/login',body={'usuario':'admin','password':'error'})[0],401)
 
-    def test_perfil_consulta_no_lee_datos_personales(self):
-        self.assertEqual(self.call('/api/mvp/doctores','consulta')[0],200)
-        self.assertEqual(self.call('/api/mvp/citas','consulta')[0],403)
-        self.assertEqual(self.call('/api/mvp/resumen','consulta')[0],403)
-        self.assertEqual(self.call('/api/mvp/usuarios','consulta')[0],403)
+    def test_recepcion_accede_al_directorio_pero_no_a_administracion(self):
+        self.assertEqual(self.call('/api/mvp/doctores','recepcion')[0],200)
+        self.assertEqual(self.call('/api/mvp/resumen','recepcion')[0],403)
+        self.assertEqual(self.call('/api/mvp/usuarios','recepcion')[0],403)
+        self.assertEqual(self.call('/api/mvp/doctores/directorio','paciente')[0],403)
+        self.assertEqual(self.call('/api/mvp/auth/login',body={
+            'usuario':'consulta','password':'Demo2026!'})[0],401)
 
     def test_paciente_y_doctor_no_agendan(self):
         body={'doctor_id':'MED001','fecha':'2026-11-10','inicio':480,'duracion':30,'paciente_nombre':'Prueba Uno'}
-        for user in ('paciente','doctora','consulta'):
+        for user in ('paciente','doctora'):
             with self.subTest(user=user):
                 self.assertEqual(self.call('/api/mvp/citas',user,body)[0],403)
 

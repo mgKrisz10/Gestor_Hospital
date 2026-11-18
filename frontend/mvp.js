@@ -18,14 +18,13 @@ function fechaLocal(d) {
 }
 const rolNombre = {
   administrador: 'Administrador', doctor: 'Doctor', paciente: 'Paciente',
-  recepcion: 'Recepción', personal_autorizado: 'Personal autorizado'
+  recepcion: 'Recepción'
 };
 const rolInfo = {
   administrador: ['Administración', 'Consulta las citas y administra el catálogo de médicos.'],
   doctor: ['Mi agenda', 'Consulta las citas asignadas a tu consultorio.'],
   paciente: ['Mis citas', 'Fechas, horarios y médicos de tus consultas.'],
-  recepcion: ['Recepción', 'Busca horarios, registra citas y administra las reservas.'],
-  personal_autorizado: ['Coordinación de atención', 'Consulta el directorio médico, sus especialidades y los horarios disponibles, sin acceder a datos personales.']
+  recepcion: ['Recepción', 'Busca horarios, registra citas y administra las reservas.']
 };
 const hora = t => `${String(Math.floor(t / 60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;
 function ventana(titulo, texto, confirmacion=false){
@@ -125,9 +124,9 @@ async function iniciarSesion(event) {
     const puedeConsultar = !soloDoctor && !soloPaciente;
     $('availability-area').hidden = !puedeConsultar;
     $('booking-form').hidden = !puedeGestionar;
-    $('agenda-area').hidden = soloPaciente || usuario.rol === 'personal_autorizado';
+    $('agenda-area').hidden = soloPaciente;
     $('patient-calendar-area').hidden = !soloPaciente;
-    $('directory-area').hidden = !['personal_autorizado','administrador','recepcion'].includes(usuario.rol);
+    $('directory-area').hidden = !['administrador','recepcion'].includes(usuario.rol);
     $('admin-area').hidden = usuario.rol !== 'administrador';
     $('doctors-admin-area').hidden = usuario.rol !== 'administrador';
     $('users-editor').hidden = usuario.rol !== 'administrador';
@@ -141,10 +140,10 @@ async function iniciarSesion(event) {
     estado('Sesión iniciada.');
     if (puedeConsultar) await cargarDoctores();
     if (soloPaciente) await cargarCalendarioPaciente();
-    else if (usuario.rol !== 'personal_autorizado') await cargarAgenda();
+    else await cargarAgenda();
     if (puedeGestionar) { await cargarPacientes(); await cargarPacienteDemo(); }
     if (usuario.rol === 'administrador') await cargarAdministrador();
-    if (['personal_autorizado','administrador','recepcion'].includes(usuario.rol)) await cargarDirectorio();
+    if (['administrador','recepcion'].includes(usuario.rol)) await cargarDirectorio();
   } catch (e) {
     if (token) estado(e.message, true);
     else { $('login-error').textContent = e.message; $('login-error').hidden = false; }
@@ -316,7 +315,7 @@ function cambiarMesCalendario(diferencia) {
   pintarCalendarioPaciente();
 }
 async function cargarAgenda() {
-  if(!usuario || usuario.rol==='personal_autorizado')return;
+  if(!usuario)return;
   try {
     const data=await api(usuario.rol==='paciente'?'/api/mvp/citas-proximas':'/api/mvp/citas');
     const puedeGestionar=['administrador','recepcion'].includes(usuario.rol);
@@ -370,7 +369,7 @@ async function cargarAdministrador() {
   } catch(e){estado(e.message,true);}
 }
 async function cargarDirectorio(){
-  if(!usuario || !['personal_autorizado','administrador','recepcion'].includes(usuario.rol))return;
+  if(!usuario || !['administrador','recepcion'].includes(usuario.rol))return;
   try{
     const data=await api('/api/mvp/doctores/directorio');
     $('directory-doctors').replaceChildren(...data.doctores.map(d=>{

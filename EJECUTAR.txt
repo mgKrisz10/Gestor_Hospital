@@ -2,7 +2,7 @@ GESTOR DE CITAS MÉDICAS
 
 1. Ejecutar python app.py (o doble clic en INICIAR.bat en Windows).
 2. Abrir la dirección local que muestra el programa.
-3. Usuarios: admin / doctora / paciente / recepcion / consulta.
+3. Usuarios: admin / doctora / paciente / recepcion.
 4. Contraseña inicial: Demo2026!
 5. Pruebas: python -m unittest discover -s tests -v
 6. Ver instrucciones en docs/guion_laboratorio.md.

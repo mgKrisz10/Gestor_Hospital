@@ -148,13 +148,12 @@ class PruebasAPIIdentidades(unittest.TestCase):
         self.assertEqual(st,200)
         self.assertTrue(all(c['doctor_id']=='MED002' for c in agenda['citas']))
 
-    def test_personal_autorizado_solo_consulta_directorio(self):
-        tok=self.token('consulta')
-        self.assertEqual(self.req('/api/mvp/doctores/directorio',token=tok)[0],200)
-        self.assertEqual(self.req('/api/mvp/doctores',token=tok)[0],200)
-        self.assertEqual(self.req('/api/mvp/citas',token=tok)[0],403)
-        self.assertEqual(self.req('/api/mvp/pacientes',token=tok)[0],403)
-        self.assertEqual(self.req('/api/mvp/usuarios',token=tok)[0],403)
+    def test_directorio_solo_recepcion_y_administracion(self):
+        self.assertEqual(self.req('/api/mvp/doctores/directorio',token=self.token('recepcion'))[0],200)
+        self.assertEqual(self.req('/api/mvp/doctores/directorio',token=self.token('admin'))[0],200)
+        self.assertEqual(self.req('/api/mvp/doctores/directorio',token=self.token('paciente'))[0],403)
+        self.assertEqual(self.req('/api/mvp/doctores/directorio',token=self.token('doctora'))[0],403)
+        self.assertEqual(self.req('/api/mvp/auth/login', {'usuario':'consulta','password':'Demo2026!'})[0],401)
 
     def test_eliminar_ultima_cuenta_medica_deja_cita_pendiente(self):
         pacid=self.auth.login('paciente','Demo2026!')['usuario']['paciente_id']

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .mvp import ReglaNegocioError
 
-ROLES = ('administrador', 'doctor', 'paciente', 'recepcion', 'personal_autorizado')
+ROLES = ('administrador', 'doctor', 'paciente', 'recepcion')
 SESION_SEGUNDOS = 60 * 60 * 2
 ITERACIONES = 210_000
 
@@ -65,11 +65,14 @@ class AutenticacionService:
                 usuario TEXT NOT NULL UNIQUE,
                 nombre TEXT NOT NULL,
                 rol TEXT NOT NULL CHECK (rol IN
-                    ('administrador','doctor','paciente','recepcion','personal_autorizado')),
+                    ('administrador','doctor','paciente','recepcion')),
                 salt BLOB NOT NULL, password_hash BLOB NOT NULL,
                 doctor_id TEXT REFERENCES doctores(id),
                 paciente_id INTEGER REFERENCES pacientes(id),
                 activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0,1)))''')
+            # Retirar cuentas de un rol discontinuado, también en bases antiguas.
+            # No se modifican médicos, pacientes ni citas.
+            con.execute("DELETE FROM usuarios WHERE rol='personal_autorizado'")
             existentes = con.execute('SELECT COUNT(*) FROM usuarios').fetchone()[0]
             if not existentes:
                 # Se crea una cuenta de paciente para el laboratorio.
@@ -81,7 +84,6 @@ class AutenticacionService:
                     ('doctora', 'Dra. Ana López', 'doctor', 'MED001', None),
                     ('paciente', 'Paciente Demo', 'paciente', None, patient_id),
                     ('recepcion', 'Personal de recepción', 'recepcion', None, None),
-                    ('consulta', 'Personal autorizado', 'personal_autorizado', None, None),
                 ]
                 for login, nombre, rol, doctor_id, paciente in perfiles:
                     salt = secrets.token_bytes(16)
@@ -143,7 +145,7 @@ class AutenticacionService:
                     row = con.execute('SELECT * FROM usuarios WHERE usuario=? AND activo=1',
                                       (usuario.strip().lower(),)).fetchone()
         # Mismo mensaje para no revelar qué cuenta existe.
-        if row is None or not hmac.compare_digest(self._hash(password, row['salt']), row['password_hash']):
+        if row is None or row['rol'] not in ROLES or not hmac.compare_digest(self._hash(password, row['salt']), row['password_hash']):
             raise SinSesion('Usuario o contraseña incorrectos')
         token = secrets.token_urlsafe(32)
         with self._lock:
@@ -164,7 +166,7 @@ class AutenticacionService:
         with self._con() as con:
             row = con.execute('SELECT * FROM usuarios WHERE id=? AND activo=1',
                               (user_id,)).fetchone()
-        if row is None:
+        if row is None or row['rol'] not in ROLES:
             self.logout(token)
             raise SinSesion('Usuario desactivado')
         return self._public(row)

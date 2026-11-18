@@ -1,4 +1,4 @@
-"""Cobertura de las agendas médicas, bajas y directorio de personal autorizado."""
+"""Cobertura de las agendas médicas, bajas y directorio para recepción."""
 import json
 import sqlite3
 import tempfile
@@ -97,11 +97,11 @@ class BajaYDirectorioTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(len(doc['citas']), 1)
         self.assertEqual(doc['citas'][0]['doctor_id'], 'MED001')
-        status, directory = req('/api/mvp/doctores/directorio', 'consulta')
+        status, directory = req('/api/mvp/doctores/directorio', 'recepcion')
         self.assertEqual(status, 200)
         self.assertTrue(all('paciente_nombre' not in d for d in directory['doctores']))
-        self.assertEqual(req('/api/mvp/citas', 'consulta')[0], 403)
-        self.assertEqual(req('/api/mvp/doctores/admin', 'consulta')[0], 403)
+        self.assertEqual(req('/api/mvp/pacientes', 'paciente')[0], 403)
+        self.assertEqual(req('/api/mvp/doctores/admin', 'recepcion')[0], 403)
         self.assertEqual(req('/api/mvp/doctores/directorio', 'paciente')[0], 403)
 
     def test_migracion_desde_db_antigua_conserva_fks_y_citas(self):

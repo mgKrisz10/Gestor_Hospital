@@ -28,7 +28,7 @@ class PruebasMaestra(unittest.TestCase):
         self.server=ThreadingHTTPServer(('127.0.0.1',0),api.Handler)
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
         self.url=f'http://127.0.0.1:{self.server.server_port}'
-        self.tokens={role:self.auth.login(role,'Demo2026!')['token'] for role in ('admin','recepcion','paciente','consulta','doctora')}
+        self.tokens={role:self.auth.login(role,'Demo2026!')['token'] for role in ('admin','recepcion','paciente','doctora')}
 
     def tearDown(self):
         self.server.shutdown();self.server.server_close();self.thread.join(timeout=5)

@@ -31,7 +31,7 @@ class RequisitosCompletosTests(unittest.TestCase):
         self.server=ThreadingHTTPServer(('127.0.0.1',0),api.Handler)
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
         self.root=f'http://127.0.0.1:{self.server.server_port}'
-        self.tokens={k:self.auth.login(k,'Demo2026!')['token'] for k in ('admin','doctora','paciente','recepcion','consulta')}
+        self.tokens={k:self.auth.login(k,'Demo2026!')['token'] for k in ('admin','doctora','paciente','recepcion')}
 
     def tearDown(self):
         self.server.shutdown();self.thread.join(timeout=5);self.server.server_close()
@@ -54,7 +54,7 @@ class RequisitosCompletosTests(unittest.TestCase):
         code,l=self.call('/api/mvp/pacientes','recepcion')
         self.assertIn(p['paciente']['id'],[x['id'] for x in l['pacientes']])
         self.assertEqual(self.call('/api/mvp/pacientes','paciente')[0],403)
-        self.assertEqual(self.call('/api/mvp/pacientes','consulta',{'nombre':'Carlos'} )[0],403)
+        self.assertEqual(self.call('/api/mvp/pacientes','doctora',{'nombre':'Carlos'} )[0],403)
 
     def test_r05_r06_conflicto_y_fecha_distinta(self):
         c={'doctor_id':'MED001','fecha':FUTURE,'inicio':480,'duracion':30,'paciente_nombre':'Mario Prado'}
@@ -89,7 +89,7 @@ class RequisitosCompletosTests(unittest.TestCase):
         c,p=self.call('/api/mvp/citas-proximas','paciente')
         self.assertEqual(c,200)
         self.assertEqual(len(p['citas']),1)
-        self.assertEqual(self.call('/api/mvp/citas-proximas','consulta')[0],403)
+        self.assertEqual(self.call('/api/mvp/citas-proximas','doctora')[0],403)
 
     def test_r11_crear_modificar_eliminar_usuario(self):
         req={'usuario':'nueva_recep','nombre':'Rocío Bello','rol':'recepcion','password':'ClaveNueva9!'}
@@ -124,7 +124,7 @@ class RequisitosCompletosTests(unittest.TestCase):
         self.assertEqual(notifs['notificaciones'][0]['tipo'],'confirmacion')
         nid=notifs['notificaciones'][0]['id']
         self.assertEqual(self.call(f'/api/mvp/notificaciones/{nid}/leida','paciente',{})[0],200)
-        self.assertEqual(self.call('/api/mvp/notificaciones','consulta')[0],403)
+        self.assertEqual(self.call('/api/mvp/notificaciones','doctora')[0],403)
         self.assertEqual(self.call('/api/mvp/confirmacion/'+str(r['id']),'paciente')[0],200)
 
     def test_r12_confirmacion_no_expuesta_a_otros_pacientes(self):

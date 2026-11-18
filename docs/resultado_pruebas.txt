@@ -1,5 +1,8 @@
-Revisión de laboratorio
-74 pruebas automatizadas de Python y HTTP aprobadas.
-Casos: horario ocupado, cancelar y volver a reservar, fecha anterior, ausencias, levantar ausencia, baja y reactivación de médico con citas.
-JavaScript: sintaxis comprobada; todas las referencias a IDs HTML existen.
-Chromium: la navegación local fue bloqueada por el entorno de pruebas; validar visualmente en la computadora del laboratorio.
+Revisión de laboratorio — cuatro perfiles
+103 pruebas automatizadas de Python y HTTP aprobadas el 18 de noviembre de 2026.
+Incluye inicio de sesión de Administración, Doctor, Paciente y Recepción;
+rechazo de la cuenta retirada y bloqueo de su creación; migración de SQLite
+sin pérdida de citas, comprobación de permisos, colisiones de citas, calendario
+del paciente y bajas de médicos.
+Sintaxis de frontend/mvp.js comprobada con node --check.
+La navegación automática completa en Chromium no se ha validado en este entorno.

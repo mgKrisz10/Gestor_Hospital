@@ -4,7 +4,7 @@ La baja de un médico ya no cancela automáticamente las citas futuras: quedan
 pendientes de reagendar. Administración o recepción puede reasignar cada cita
 a otro doctor sin perder el folio, paciente o historial.
 
-Se agregó un directorio de médicos para personal autorizado, recepción y
+Se agregó un directorio de médicos para recepción y
 administración. Contiene médicos, especialidades, estado y cifras de citas;
 no muestra nombres ni datos personales de pacientes.
 
@@ -23,6 +23,9 @@ CORRECCIÓN DEL 18 DE NOVIEMBRE DE 2026
 - Clave PAC-000001 única por paciente, visible en el calendario y en recepción.
 - Restricción de citas simultáneas para el mismo paciente con cualquier doctor.
 - Reprogramación revisa también disponibilidad del paciente.
-- El personal autorizado consulta directorio/disponibilidad sin ver pacientes.
+- El directorio queda disponible para recepción y administración.
 - Citas de médico dado de baja: "Pendiente de reagendar" en el calendario.
 - Al eliminar la última cuenta médica se da de baja al médico y se preservan citas para reagendar.
+
+CAMBIO DE PERFILES (NOVIEMBRE)
+Se retiró el rol Personal autorizado del inicio de sesión, la creación de usuarios y las autorizaciones del servidor. La cuenta anterior se elimina al iniciar, conservando médicos, pacientes y citas.

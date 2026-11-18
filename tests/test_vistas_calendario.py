@@ -33,10 +33,10 @@ class TestVistasCalendario(unittest.TestCase):
     def test_agrega_cuentas_a_base_existente_sin_duplicarlas(self):
         with self.auth._con() as con:
             con.execute("DELETE FROM usuarios WHERE usuario IN ('doctor_carlos','doctora_sofia')")
-        self.assertEqual(len(self.auth.usuarios()),5)
+        self.assertEqual(len(self.auth.usuarios()),4)
         AutenticacionService(self.servicio.db_path)
         AutenticacionService(self.servicio.db_path)
-        self.assertEqual(len(self.auth.usuarios()),7)
+        self.assertEqual(len(self.auth.usuarios()),6)
         self.assertEqual(self.auth.login('doctor_carlos','Demo2026!')['usuario']['doctor_id'],'MED002')
 
     def test_doctor_solo_ve_su_agenda_y_paciente_solo_sus_citas(self):
