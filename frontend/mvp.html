@@ -31,7 +31,9 @@
       <div class="demo-guide"><div class="row"><strong>Usuarios de prueba</strong></div>
         <div class="demo-grid" id="demo-grid">
           <button type="button" data-demo="admin"><span class="demo-avatar">A</span><span>Administrador</span></button>
-          <button type="button" data-demo="doctora"><span class="demo-avatar">D</span><span>Doctor</span></button>
+          <button type="button" data-demo="doctora"><span class="demo-avatar">D</span><span>Dra. Ana López</span></button>
+          <button type="button" data-demo="doctor_carlos"><span class="demo-avatar">D</span><span>Dr. Carlos Martínez</span></button>
+          <button type="button" data-demo="doctora_sofia"><span class="demo-avatar">D</span><span>Dra. Sofía Hernández</span></button>
           <button type="button" data-demo="paciente"><span class="demo-avatar">P</span><span>Paciente</span></button>
           <button type="button" data-demo="recepcion"><span class="demo-avatar">R</span><span>Recepción</span></button>
           <button type="button" data-demo="consulta"><span class="demo-avatar">C</span><span>Personal autorizado</span></button>
@@ -72,6 +74,29 @@
       </article>
     </section>
 
+    <section id="patient-calendar-area" class="card patient-calendar" hidden>
+      <div class="calendar-bar">
+        <div>
+          <h2>Calendario de mis citas</h2>
+          <p class="calendar-intro">Selecciona una fecha para ver el horario y el médico que te atenderá.</p>
+        </div>
+        <div class="calendar-nav" aria-label="Cambiar mes">
+          <button type="button" id="calendar-prev" aria-label="Mes anterior">‹</button>
+          <strong id="calendar-title" aria-live="polite"></strong>
+          <button type="button" id="calendar-next" aria-label="Mes siguiente">›</button>
+          <button type="button" id="calendar-today" class="calendar-today">Hoy</button>
+        </div>
+      </div>
+      <div class="calendar-weekdays" aria-hidden="true">
+        <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+      </div>
+      <div id="calendar-days" class="calendar-days" role="group" aria-label="Citas por día"></div>
+      <div class="calendar-detail">
+        <div class="row space"><h3 id="calendar-selected-title">Citas del día</h3><button id="calendar-refresh" class="button ghost" type="button">Actualizar citas</button></div>
+        <div id="calendar-selected-citas" class="calendar-events"></div>
+      </div>
+    </section>
+
     <section id="agenda-area" class="card agenda" hidden>
       <div class="row space"><div><h2 id="agenda-heading">Agenda de citas</h2></div><button id="refresh" type="button" class="button ghost">Actualizar agenda ↻</button></div>
       <div class="table-wrap"><table><thead><tr><th>Folio</th><th>Paciente</th><th>Médico</th><th>Fecha</th><th>Horario</th><th>Estado</th><th id="action-head">Acción</th></tr></thead><tbody id="appointments"><tr><td colspan="7">Aún no hay información.</td></tr></tbody></table></div>
@@ -97,17 +122,6 @@
         <button type="submit" class="button primary">Registrar paciente</button>
       </form>
       <div class="table-wrap"><table><thead><tr><th>ID</th><th>Nombre</th><th>Teléfono</th><th>Correo</th></tr></thead><tbody id="patients"></tbody></table></div>
-    </section>
-
-    <section id="absences-area" class="card" hidden>
-      <h2>Ausencias médicas</h2>
-      <form id="absence-form" class="form-grid">
-        <label id="absence-doctor-row">Médico<select id="absence-doctor"></select></label>
-        <label>Fecha<input id="absence-date" type="date" required></label>
-        <label>Motivo<input id="absence-reason" minlength="5" maxlength="250" required placeholder="Motivo de la ausencia"></label>
-        <button type="submit" class="button primary">Registrar ausencia</button>
-      </form>
-      <div class="table-wrap"><table><thead><tr><th>Médico</th><th>Fecha</th><th>Motivo</th><th>Acción</th></tr></thead><tbody id="absences"></tbody></table></div>
     </section>
 
     <section id="notifications-area" class="card" hidden>

@@ -65,7 +65,7 @@ class AutenticacionTests(BaseHospitalTest, unittest.TestCase):
         original=self.auth.login('paciente','Demo2026!')['usuario']['paciente_id']
         another=AutenticacionService(self.db).login('paciente','Demo2026!')['usuario']['paciente_id']
         self.assertEqual(original, another)
-        self.assertEqual(len(self.auth.usuarios()),5)
+        self.assertEqual(len(self.auth.usuarios()),7)
 
     def test_doctor_agregado_y_duplicado(self):
         from src.mvp import ReglaNegocioError

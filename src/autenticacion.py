@@ -70,26 +70,42 @@ class AutenticacionService:
                 paciente_id INTEGER REFERENCES pacientes(id),
                 activo INTEGER NOT NULL DEFAULT 1 CHECK (activo IN (0,1)))''')
             existentes = con.execute('SELECT COUNT(*) FROM usuarios').fetchone()[0]
-            if existentes:
-                return
-            # Un paciente ficticio vinculado a una cuenta; las otras citas pueden
-            # registrarse para pacientes sin cuenta y no serán visibles en ella.
-            patient_id = con.execute(
-                'INSERT INTO pacientes(nombre,telefono) VALUES (?,?)',
-                ('Paciente Demo', '5500000000')).lastrowid
-            perfiles = [
-                ('admin', 'Administración', 'administrador', None, None),
-                ('doctora', 'Dra. Ana López', 'doctor', 'MED001', None),
-                ('paciente', 'Paciente Demo', 'paciente', None, patient_id),
-                ('recepcion', 'Personal de recepción', 'recepcion', None, None),
-                ('consulta', 'Personal autorizado', 'personal_autorizado', None, None),
+            if not existentes:
+                # Se crea una cuenta de paciente para el laboratorio.
+                patient_id = con.execute(
+                    'INSERT INTO pacientes(nombre,telefono) VALUES (?,?)',
+                    ('Paciente Demo', '5500000000')).lastrowid
+                perfiles = [
+                    ('admin', 'Administración', 'administrador', None, None),
+                    ('doctora', 'Dra. Ana López', 'doctor', 'MED001', None),
+                    ('paciente', 'Paciente Demo', 'paciente', None, patient_id),
+                    ('recepcion', 'Personal de recepción', 'recepcion', None, None),
+                    ('consulta', 'Personal autorizado', 'personal_autorizado', None, None),
+                ]
+                for login, nombre, rol, doctor_id, paciente in perfiles:
+                    salt = secrets.token_bytes(16)
+                    con.execute('''INSERT INTO usuarios
+                        (usuario,nombre,rol,salt,password_hash,doctor_id,paciente_id)
+                        VALUES (?,?,?,?,?,?,?)''',
+                        (login, nombre, rol, salt, self._hash('Demo2026!', salt), doctor_id, paciente))
+
+            # Añadir cuentas médicas nuevas aun cuando ya existan usuarios y citas.
+            # No modificar contraseñas, permisos ni vínculos de cuentas existentes.
+            otros_medicos = [
+                ('doctor_carlos', 'MED002'),
+                ('doctora_sofia', 'MED003'),
             ]
-            for login, nombre, rol, doctor_id, paciente in perfiles:
+            for login, doctor_id in otros_medicos:
+                if con.execute('SELECT 1 FROM usuarios WHERE usuario=?', (login,)).fetchone():
+                    continue
+                doctor = con.execute('SELECT nombre FROM doctores WHERE id=?', (doctor_id,)).fetchone()
+                if doctor is None:
+                    continue
                 salt = secrets.token_bytes(16)
                 con.execute('''INSERT INTO usuarios
                     (usuario,nombre,rol,salt,password_hash,doctor_id,paciente_id)
-                    VALUES (?,?,?,?,?,?,?)''',
-                    (login, nombre, rol, salt, self._hash('Demo2026!', salt), doctor_id, paciente))
+                    VALUES (?,?,?,?,?,?,NULL)''',
+                    (login, doctor['nombre'], 'doctor', salt, self._hash('Demo2026!', salt), doctor_id))
 
     @staticmethod
     def _public(row: sqlite3.Row):

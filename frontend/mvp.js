@@ -8,14 +8,21 @@ let pacienteDemoId = null;
 let editingAppointment = null;
 let listaPacientes = [];
 let listaDoctores = [];
+let citasCalendario = [];
+let mesCalendario = new Date().getMonth();
+let anioCalendario = new Date().getFullYear();
+let fechaCalendario = fechaLocal(new Date());
+function fechaLocal(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
 const rolNombre = {
   administrador: 'Administrador', doctor: 'Doctor', paciente: 'Paciente',
   recepcion: 'Recepción', personal_autorizado: 'Personal autorizado'
 };
 const rolInfo = {
   administrador: ['Administración', 'Consulta las citas y administra el catálogo de médicos.'],
-  doctor: ['Mi agenda', 'Citas y horarios de tu consultorio.'],
-  paciente: ['Mis citas', 'Consulta las citas asociadas a tu cuenta.'],
+  doctor: ['Mi agenda', 'Consulta las citas asignadas a tu consultorio.'],
+  paciente: ['Mis citas', 'Fechas, horarios y médicos de tus consultas.'],
   recepcion: ['Recepción', 'Busca horarios, registra citas y administra las reservas.'],
   personal_autorizado: ['Coordinación de atención', 'Consulta el directorio médico, sus especialidades y los horarios disponibles, sin acceder a datos personales.']
 };
@@ -77,7 +84,7 @@ function cerrarSesion(mostrarMensaje=true) {
   $('logout').hidden = true;
   $('password').value = '';
   $('login-error').hidden = true;
-  ['patients-area','absences-area','notifications-area','users-editor','reprogram-area','directory-area'].forEach(id=>$(id).hidden=true);
+  ['patients-area','patient-calendar-area','notifications-area','users-editor','reprogram-area','directory-area'].forEach(id=>$(id).hidden=true);
   if (mostrarMensaje && viejo) fetch('/api/mvp/auth/logout',{method:'POST', headers:{Authorization:`Bearer ${viejo}`,'Content-Type':'application/json'},body:'{}'}).catch(()=>{});
 }
 async function iniciarSesion(event) {
@@ -96,29 +103,30 @@ async function iniciarSesion(event) {
     $('dashboard-heading').textContent = rolInfo[usuario.rol][0];
     $('dashboard-description').textContent = rolInfo[usuario.rol][1];
     const puedeGestionar = ['administrador','recepcion'].includes(usuario.rol);
-    const puedeConsultar = true;
+    const soloDoctor = usuario.rol === 'doctor';
+    const soloPaciente = usuario.rol === 'paciente';
+    const puedeConsultar = !soloDoctor && !soloPaciente;
     $('availability-area').hidden = !puedeConsultar;
     $('booking-form').hidden = !puedeGestionar;
-    $('agenda-area').hidden = usuario.rol === 'personal_autorizado';
+    $('agenda-area').hidden = soloPaciente || usuario.rol === 'personal_autorizado';
+    $('patient-calendar-area').hidden = !soloPaciente;
     $('directory-area').hidden = !['personal_autorizado','administrador','recepcion'].includes(usuario.rol);
     $('admin-area').hidden = usuario.rol !== 'administrador';
     $('doctors-admin-area').hidden = usuario.rol !== 'administrador';
     $('users-editor').hidden = usuario.rol !== 'administrador';
     $('patients-area').hidden = !puedeGestionar;
-    $('absences-area').hidden = !['doctor','administrador'].includes(usuario.rol);
-    $('notifications-area').hidden = usuario.rol !== 'paciente';
+    $('notifications-area').hidden = true;
     $('reprogram-area').hidden = true;
-    $('agenda-heading').textContent = usuario.rol === 'doctor' ? 'Mi agenda médica' : usuario.rol === 'paciente' ? 'Mis citas' : 'Citas registradas';
+    $('agenda-heading').textContent = soloDoctor ? 'Mis consultas' : 'Citas registradas';
     $('action-head').hidden = !puedeGestionar;
-    $('doctor').disabled = usuario.rol === 'doctor';
+    $('doctor').disabled = soloDoctor;
     resetSeleccion();
     estado('Sesión iniciada.');
     if (puedeConsultar) await cargarDoctores();
-    if (!['personal_autorizado'].includes(usuario.rol)) await cargarAgenda();
+    if (soloPaciente) await cargarCalendarioPaciente();
+    else if (usuario.rol !== 'personal_autorizado') await cargarAgenda();
     if (puedeGestionar) { await cargarPacientes(); await cargarPacienteDemo(); }
     if (usuario.rol === 'administrador') await cargarAdministrador();
-    if (['administrador','doctor'].includes(usuario.rol)) await cargarAusencias();
-    if (usuario.rol === 'paciente') await cargarNotificaciones();
     if (['personal_autorizado','administrador','recepcion'].includes(usuario.rol)) await cargarDirectorio();
   } catch (e) {
     if (token) estado(e.message, true);
@@ -135,7 +143,7 @@ async function cargarDoctores() {
   }));
   if (usuario.rol === 'doctor') $('doctor').value = usuario.doctor_id;
   else if (data.doctores.some(d=>d.id===prev)) $('doctor').value = prev;
-  for(const id of ['reschedule-doctor','absence-doctor','account-doctor']){
+  for(const id of ['reschedule-doctor','account-doctor']){
     const sel=$(id);const current=sel.value;
     sel.replaceChildren(...(id==='account-doctor'?[new Option('Seleccionar','')]:[]),
        ...data.doctores.map(d=>new Option(`${d.nombre} — ${d.especialidad}`,d.id)));
@@ -225,6 +233,70 @@ async function reservar() {
     estado(respuesta.confirmacion || `Cita #${respuesta.id} registrada.`);
     if(usuario.rol==='administrador')await cargarAdministrador();
   } catch(e){estado(e.message,true);await ventana('No se pudo agendar la cita',e.message);await consultar();} finally {$('book').disabled=seleccionado===null;}
+}
+const mesesCalendario = ['enero','febrero','marzo','abril','mayo','junio',
+  'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function fechaDelCalendario(anio,mes,dia) {
+  return `${anio}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+}
+async function cargarCalendarioPaciente() {
+  if(!usuario || usuario.rol!=='paciente') return;
+  try {
+    // El servidor devuelve exclusivamente las citas vinculadas a esta cuenta.
+    const r=await api('/api/mvp/citas');
+    citasCalendario=r.citas.filter(c=>c.estado==='programada');
+    pintarCalendarioPaciente();
+  }catch(e){estado(e.message,true)}
+}
+function pintarCalendarioPaciente() {
+  const titulo=`${mesesCalendario[mesCalendario]} ${anioCalendario}`;
+  $('calendar-title').textContent=titulo.charAt(0).toUpperCase()+titulo.slice(1);
+  const dias=$('calendar-days');dias.replaceChildren();
+  const comienzo=(new Date(anioCalendario,mesCalendario,1).getDay()+6)%7;
+  const cuantos=new Date(anioCalendario,mesCalendario+1,0).getDate();
+  for(let i=0;i<comienzo;i++){
+    const vacio=document.createElement('div');vacio.className='calendar-blank';
+    vacio.setAttribute('aria-hidden','true');dias.append(vacio);
+  }
+  for(let dia=1;dia<=cuantos;dia++){
+    const fecha=fechaDelCalendario(anioCalendario,mesCalendario,dia);
+    const citas=citasCalendario.filter(c=>c.fecha===fecha);
+    const boton=document.createElement('button');boton.type='button';
+    boton.className='calendar-day';
+    if(fecha===fechaLocal(new Date()))boton.classList.add('is-today');
+    if(fecha===fechaCalendario)boton.classList.add('is-selected');
+    boton.setAttribute('aria-pressed',String(fecha===fechaCalendario));
+    const diaNum=document.createElement('strong');diaNum.textContent=String(dia);
+    boton.append(diaNum);
+    for(const cita of citas.slice(0,2)){
+      const nota=document.createElement('span');nota.className='calendar-appointment';
+      nota.textContent=`${hora(cita.inicio)} · ${cita.doctor_nombre}`;
+      nota.title=`${hora(cita.inicio)} - ${hora(cita.inicio+cita.duracion)} | ${cita.doctor_nombre}`;
+      boton.append(nota);
+    }
+    if(citas.length>2){const resto=document.createElement('small');resto.textContent=`+${citas.length-2} más`;boton.append(resto)}
+    boton.setAttribute('aria-label',`${dia} de ${mesesCalendario[mesCalendario]}: ${citas.length} cita(s)`);
+    boton.onclick=()=>{fechaCalendario=fecha;pintarCalendarioPaciente()};
+    dias.append(boton);
+  }
+  const citasDia=citasCalendario.filter(c=>c.fecha===fechaCalendario);
+  const partes=fechaCalendario.split('-');
+  $('calendar-selected-title').textContent=`Citas del ${Number(partes[2])} de ${mesesCalendario[Number(partes[1])-1]}`;
+  const caja=$('calendar-selected-citas');caja.replaceChildren();
+  if(!citasDia.length){const nota=document.createElement('p');nota.className='muted';nota.textContent='No tienes citas para esta fecha.';caja.append(nota);return;}
+  for(const cita of citasDia.sort((a,b)=>a.inicio-b.inicio)){
+    const evento=document.createElement('div');evento.className='calendar-event';
+    const horario=document.createElement('strong');horario.textContent=`${hora(cita.inicio)} – ${hora(cita.inicio+cita.duracion)}`;
+    const medico=document.createElement('span');medico.textContent=cita.doctor_nombre;
+    const estadoCita=document.createElement('small');estadoCita.textContent=cita.estado==='pendiente_reagendar'?'Pendiente de reagendar':cita.estado==='cancelada'?'Cancelada':'Programada';
+    evento.append(horario,medico,estadoCita);caja.append(evento);
+  }
+}
+function cambiarMesCalendario(diferencia) {
+  const nuevo=new Date(anioCalendario,mesCalendario+diferencia,1);
+  anioCalendario=nuevo.getFullYear();mesCalendario=nuevo.getMonth();
+  fechaCalendario=fechaDelCalendario(anioCalendario,mesCalendario,1);
+  pintarCalendarioPaciente();
 }
 async function cargarAgenda() {
   if(!usuario || usuario.rol==='personal_autorizado')return;
@@ -398,39 +470,6 @@ async function guardarReprogramacion(event){
     estado(r.confirmacion||'Cita reprogramada.');
   }catch(e){estado(e.message,true)}
 }
-async function cargarAusencias(){
-  if(!['administrador','doctor'].includes(usuario.rol))return;
-  $('absence-doctor-row').hidden=usuario.rol==='doctor';
-  const r=await api('/api/mvp/ausencias');
-  $('absences').replaceChildren(...r.ausencias.map(a=>{
-    const tr=document.createElement('tr');
-    [a.doctor_nombre,a.fecha,a.motivo].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td)});
-    const td=document.createElement('td');const boton=document.createElement('button');
-    boton.type='button';boton.className='small-btn';boton.textContent='Liberar fecha';
-    boton.addEventListener('click',async()=>{
-      if(!await ventana('Liberar fecha',`¿Quitar la ausencia del ${a.fecha} de ${a.doctor_nombre}? Las citas ya canceladas permanecerán canceladas.`,true))return;
-      try{
-        const resp=await post(`/api/mvp/ausencias/${a.id}/levantar`,{});
-        await cargarAusencias();await consultar();
-        estado(resp.mensaje);await ventana('Fecha liberada',resp.mensaje);
-      }catch(e){estado(e.message,true);await ventana('No se pudo liberar',e.message)}
-    });td.append(boton);tr.append(td);
-    return tr;
-  }));
-}
-async function guardarAusencia(event){
-  event.preventDefault();
-  try{
-    const doctor_id=usuario.rol==='doctor'?usuario.doctor_id:$('absence-doctor').value;
-    const r=await post('/api/mvp/ausencias',{
-      doctor_id,fecha:$('absence-date').value,motivo:$('absence-reason').value
-    });
-    $('absence-form').reset();await cargarAusencias();await cargarAgenda();
-    estado(`Ausencia registrada. Citas canceladas: ${r.canceladas.length}.`);
-    if(usuario.rol==='administrador')await cargarAdministrador();
-    await consultar();
-  }catch(e){estado(e.message,true)}
-}
 async function cargarNotificaciones(){
   if(usuario.rol!=='paciente')return;
   const r=await api('/api/mvp/notificaciones');
@@ -492,15 +531,17 @@ $('patient-form').addEventListener('submit',registrarPaciente);
 $('existing-patient').addEventListener('change',actualizarPacienteSeleccionado);
 $('reschedule-form').addEventListener('submit',guardarReprogramacion);
 $('reschedule-close').addEventListener('click',()=>{$('reprogram-area').hidden=true;editingAppointment=null});
-$('absence-form').addEventListener('submit',guardarAusencia);
 $('notifications-refresh').addEventListener('click',cargarNotificaciones);
 $('user-form').addEventListener('submit',guardarUsuario);
 $('user-form-reset').addEventListener('click',limpiarUsuario);
 $('refresh').addEventListener('click',cargarAgenda);
+$('calendar-prev').addEventListener('click',()=>cambiarMesCalendario(-1));
+$('calendar-next').addEventListener('click',()=>cambiarMesCalendario(1));
+$('calendar-today').addEventListener('click',()=>{const d=new Date();anioCalendario=d.getFullYear();mesCalendario=d.getMonth();fechaCalendario=fechaLocal(d);pintarCalendarioPaciente()});
+$('calendar-refresh').addEventListener('click',cargarCalendarioPaciente);
 $('new-doctor-form').addEventListener('submit',registrarDoctor);
 $('directory-refresh').addEventListener('click',cargarDirectorio);
 const hoy=new Date();hoy.setMinutes(hoy.getMinutes()-hoy.getTimezoneOffset());
 $('date').value=hoy.toISOString().slice(0,10);
-$('absence-date').value=$('date').value;
-for(const id of ['date','absence-date','reschedule-date'])$(id).min=$('date').value;
+for(const id of ['date','reschedule-date'])$(id).min=$('date').value;
 $('doctor-admin-refresh').addEventListener('click',()=>cargarCatalogoMedicos().catch(e=>estado(e.message,true)));
