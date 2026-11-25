@@ -103,6 +103,8 @@ class Handler(BaseHTTPRequestHandler):
                 if parsed.path == '/api/mvp/doctores/directorio':
                     auth.exigir(usuario,'administrador','recepcion')
                     return self.enviar(200,{'ok':True,'doctores':svc.directorio_medicos()})
+                if parsed.path == '/api/mvp/especialidades':
+                    return self.enviar(200,{'ok':True,'especialidades':svc.listar_especialidades()})
                 if parsed.path == '/api/mvp/doctores/admin':
                     auth.exigir(usuario,'administrador')
                     return self.enviar(200, {'ok':True,'doctores':svc.listar_doctores_todos()})
@@ -112,6 +114,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self.enviar(200,svc.impacto_doctor(partes[3]))
                 if parsed.path == '/api/mvp/doctores':
                     return self.enviar(200, {'ok':True, 'doctores':svc.listar_doctores()})
+                if len(partes)==5 and partes[:3]==['api','mvp','citas'] and partes[4]=='medicos-compatibles':
+                    auth.exigir(usuario,'administrador','recepcion')
+                    return self.enviar(200,svc.medicos_para_reagendar(partes[3]))
                 if parsed.path == '/api/mvp/disponibilidad':
                     doctor_id = param('doctor')
                     if usuario.rol == 'doctor' and doctor_id != usuario.doctor_id:
@@ -203,7 +208,7 @@ class Handler(BaseHTTPRequestHandler):
                 auth.exigir(usuario,'administrador','recepcion')
                 return self.enviar(201,svc.agendar(data.get('doctor_id'),data.get('fecha'),
                     data.get('inicio'),data.get('duracion'),data.get('paciente_nombre'),
-                    data.get('paciente_telefono',''),data.get('paciente_id'),data.get('paciente_correo','')))
+                    data.get('paciente_telefono',''),data.get('paciente_id'),data.get('paciente_correo',''),data.get('especialidad')))
             if parsed.path == '/api/mvp/pacientes':
                 auth.exigir(usuario,'administrador','recepcion')
                 return self.enviar(201,svc.registrar_paciente(data.get('nombre'),data.get('telefono',''),data.get('correo','')))
@@ -218,7 +223,7 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == '/api/mvp/doctores':
                 auth.exigir(usuario,'administrador')
                 return self.enviar(201,svc.registrar_doctor(data.get('id'),
-                                   data.get('nombre'),data.get('especialidad')))
+                                   data.get('nombre'),data.get('especialidad'),data.get('especialidades')))
             parts=parsed.path.strip('/').split('/')
             if len(parts)==5 and parts[:3]==['api','mvp','doctores'] and parts[4]=='baja':
                 auth.exigir(usuario,'administrador')
@@ -279,6 +284,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main(host='127.0.0.1',port=8000):
+    from . import sqlserver_backend as sqlserver
+    if sqlserver.activado():
+        # Fallar al inicio si falta la conexión externa. Nunca cambiar a SQLite.
+        servicio(); autenticacion()
     server=ThreadingHTTPServer((host,port),Handler)
     print('MedAgenda - Gestor de citas médicas')
     print(f'Servidor: http://{host}:{port}')

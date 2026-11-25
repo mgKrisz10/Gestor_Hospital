@@ -9,6 +9,7 @@ let pacienteDemoId = null;
 let editingAppointment = null;
 let listaPacientes = [];
 let listaDoctores = [];
+let especialidadesHospital = [];
 let citasCalendario = [];
 let mesCalendario = new Date().getMonth();
 let anioCalendario = new Date().getFullYear();
@@ -142,7 +143,7 @@ async function iniciarSesion(event) {
     if (soloPaciente) await cargarCalendarioPaciente();
     else await cargarAgenda();
     if (puedeGestionar) { await cargarPacientes(); await cargarPacienteDemo(); }
-    if (usuario.rol === 'administrador') await cargarAdministrador();
+    if (usuario.rol === 'administrador') {await cargarEspecialidades();await cargarAdministrador();}
     if (['administrador','recepcion'].includes(usuario.rol)) await cargarDirectorio();
   } catch (e) {
     if (token) estado(e.message, true);
@@ -153,6 +154,7 @@ async function cargarDoctores() {
   const data = await api('/api/mvp/doctores');
   const prev = $('doctor').value;
   listaDoctores = data.doctores;
+  actualizarEspecialidadesCita();
   $('doctor').replaceChildren(...data.doctores.map(d=>{
     const opt=document.createElement('option'); opt.value=d.id;
     opt.textContent=`${d.nombre} — ${d.especialidad}`;return opt;
@@ -165,7 +167,30 @@ async function cargarDoctores() {
        ...data.doctores.map(d=>new Option(`${d.nombre} — ${d.especialidad}`,d.id)));
     if(data.doctores.some(d=>d.id===current))sel.value=current;
   }
+  actualizarEspecialidadesCita();
   resetSeleccion();
+}
+function actualizarEspecialidadesCita(){
+  const d=listaDoctores.find(d=>d.id===$('doctor').value)||listaDoctores[0];
+  const previa=$('appointment-specialty').value;
+  const valores=d?.especialidades||[d?.especialidad].filter(Boolean);
+  $('appointment-specialty').replaceChildren(...valores.map(e=>new Option(e,e)));
+  if(valores.includes(previa))$('appointment-specialty').value=previa;
+}
+async function cargarEspecialidades(){
+  const data=await api('/api/mvp/especialidades');
+  especialidadesHospital=data.especialidades;
+  $('new-specialty').replaceChildren(...especialidadesHospital.map(e=>new Option(e,e)));
+  $('extra-specialties').replaceChildren();
+}
+function agregarEspecialidad(){
+  const line=document.createElement('div');line.className='specialty-line';
+  const selector=document.createElement('select');
+  selector.required=true;
+  selector.replaceChildren(new Option('Seleccionar especialidad',''),...especialidadesHospital.map(e=>new Option(e,e)));
+  const quitar=document.createElement('button');quitar.type='button';quitar.className='button ghost';
+  quitar.textContent='Quitar';quitar.onclick=()=>line.remove();
+  line.append(selector,quitar);$('extra-specialties').append(line);
 }
 function resetSeleccion() {
   seleccionado = null;
@@ -237,7 +262,7 @@ async function reservar() {
   if(seleccionado===null) return;
   $('book').disabled=true;
   try {
-    const data={doctor_id:$('doctor').value,fecha:$('date').value,
+    const data={doctor_id:$('doctor').value,especialidad:$('appointment-specialty').value,fecha:$('date').value,
       inicio:seleccionado,duracion:Number($('duration').value),
       paciente_nombre:$('patient').value,paciente_telefono:$('phone').value,
       paciente_correo:$('email').value};
@@ -419,8 +444,14 @@ async function cambiarEstadoDoctor(doctor){
 async function registrarDoctor(event) {
   event.preventDefault();
   try {
-    const r=await post('/api/mvp/doctores',{id:$('new-id').value,nombre:$('new-name').value,especialidad:$('new-specialty').value});
-    $('new-doctor-form').reset();await cargarDoctores();await cargarAdministrador();
+    const extras=[...$('extra-specialties').querySelectorAll('select')].map(s=>s.value);
+    const especialidades=[$('new-specialty').value,...extras];
+    if(especialidades.some(e=>!e) || new Set(especialidades).size!==especialidades.length){
+      throw new Error('Selecciona especialidades distintas, sin repetir.');
+    }
+    const r=await post('/api/mvp/doctores',{id:$('new-id').value,nombre:$('new-name').value,
+      especialidad:especialidades[0],especialidades});
+    $('new-doctor-form').reset();$('extra-specialties').replaceChildren();await cargarDoctores();await cargarAdministrador();
     estado(`Se agregó ${r.doctor.nombre} (${r.doctor.id}) al catálogo.`);
   } catch(e) {estado(e.message,true);}
 }
@@ -458,10 +489,15 @@ async function registrarPaciente(event){
     estado(`Paciente ${r.paciente.clave} registrado.`);
   }catch(e){estado(e.message,true)}
 }
-function abrirReprogramacion(c){
+async function abrirReprogramacion(c){
   editingAppointment=c.id;$('reschedule-id').textContent=`#${c.id}`;
-  const puedeSeleccionar=listaDoctores.some(d=>d.id===c.doctor_id);
-  $('reschedule-doctor').value=puedeSeleccionar?c.doctor_id:(listaDoctores[0]?.id||'');
+  try{
+    const response=await api(`/api/mvp/citas/${c.id}/medicos-compatibles`);
+    const medicos=response.doctores;
+    $('reschedule-doctor').replaceChildren(...medicos.map(d=>new Option(`${d.nombre} — ${d.especialidades.join(', ')}`,d.id)));
+    $('reschedule-doctor').value=medicos.some(d=>d.id===c.doctor_id)?c.doctor_id:(medicos[0]?.id||'');
+    if(!medicos.length){await ventana('Sin médicos compatibles',`No hay médicos activos con la especialidad ${response.especialidad}.`);return;}
+  }catch(e){estado(e.message,true);return;}
   $('reschedule-date').value=c.fecha;
   $('reschedule-time').value=hora(c.inicio);
   $('reschedule-duration').value=String(c.duracion);
@@ -543,7 +579,9 @@ $('demo-grid').querySelectorAll('button').forEach(b=>b.addEventListener('click',
 }));
 $('doctor-login-back').addEventListener('click',()=>mostrarAccesoDoctor(false));
 $('logout').addEventListener('click',()=>cerrarSesion());
-['date','doctor','duration'].forEach(id=>$(id).addEventListener('change',resetSeleccion));
+['date','duration','appointment-specialty'].forEach(id=>$(id).addEventListener('change',resetSeleccion));
+$('doctor').addEventListener('change',()=>{actualizarEspecialidadesCita();resetSeleccion();});
+$('add-specialty').addEventListener('click',agregarEspecialidad);
 $('search').addEventListener('click',consultar);
 $('demo-patient').addEventListener('change',alternarPacienteDemo);
 $('book').addEventListener('click',reservar);

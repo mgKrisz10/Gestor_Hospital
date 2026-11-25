@@ -9,6 +9,8 @@ from datetime import date
 from pathlib import Path
 
 from .gestor_citas import Cita, Error, HORARIO_LABORAL, buscar_disponibilidad, formatear_hora
+from .especialidades import normalizar, ESPECIALIDADES_HOSPITAL
+from . import sqlserver_backend as sqlserver
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -46,12 +48,17 @@ class HospitalService:
     """Operaciones de consulta, registro y cancelación de citas."""
 
     def __init__(self, db_path: str | Path | None = None, doctores_path: str | Path | None = None):
-        self.db_path = str(db_path or ROOT / 'data' / 'hospital.sqlite3')
+        self.db_path = sqlserver.cadena_conexion() if sqlserver.activado() else str(db_path or ROOT / 'data' / 'hospital.sqlite3')
         self.doctores_path = Path(doctores_path or ROOT / 'data' / 'citas_ficticias.json')
         self._inicializar()
 
     @contextmanager
     def _conexion(self):
+        if sqlserver.activado():
+            con=sqlserver.conectar()
+            try: yield con
+            finally: con.close()
+            return
         con = sqlite3.connect(self.db_path, timeout=10, isolation_level=None)
         con.row_factory = sqlite3.Row
         try:
@@ -62,6 +69,24 @@ class HospitalService:
             con.close()
 
     def _inicializar(self):
+        if sqlserver.activado():
+            sqlserver.preparar_esquema()
+            datos=json.loads(self.doctores_path.read_text(encoding='utf-8'))
+            with self._conexion() as con:
+                for d in datos['doctores']:
+                    if not con.execute('SELECT 1 FROM doctores WHERE id=?',(d['id'],)).fetchone():
+                        con.execute('INSERT INTO doctores(id,nombre,especialidad) VALUES (?,?,?)',
+                                    (d['id'],d['nombre'],d['especialidad']))
+                for e in ESPECIALIDADES_HOSPITAL:
+                    if not con.execute('SELECT 1 FROM especialidades_hospital WHERE nombre=?',(e,)).fetchone():
+                        con.execute('INSERT INTO especialidades_hospital(nombre) VALUES (?)',(e,))
+                for d in con.execute('SELECT id,especialidad FROM doctores').fetchall():
+                    spec=normalizar(d['especialidad']) or d['especialidad']
+                    if not con.execute('SELECT 1 FROM doctor_especialidades WHERE doctor_id=? AND especialidad=?',
+                                       (d['id'],spec)).fetchone():
+                        con.execute('INSERT INTO doctor_especialidades(doctor_id,especialidad) VALUES (?,?)',
+                                    (d['id'],spec))
+            return
         with self._conexion() as con:
             con.executescript('''
                 CREATE TABLE IF NOT EXISTS doctores (
@@ -73,6 +98,7 @@ class HospitalService:
                     doctor_id TEXT NOT NULL REFERENCES doctores(id),
                     paciente_id INTEGER NOT NULL REFERENCES pacientes(id),
                     fecha TEXT NOT NULL, inicio INTEGER NOT NULL, duracion INTEGER NOT NULL,
+                    especialidad TEXT NOT NULL DEFAULT '',
                     estado TEXT NOT NULL DEFAULT 'programada'
                        CHECK (estado IN ('programada', 'cancelada', 'pendiente_reagendar')));
                 CREATE INDEX IF NOT EXISTS idx_citas_agenda ON citas(doctor_id, fecha, estado, inicio);
@@ -80,6 +106,24 @@ class HospitalService:
             datos = json.loads(self.doctores_path.read_text(encoding='utf-8'))
             con.executemany('INSERT OR IGNORE INTO doctores(id,nombre,especialidad) VALUES (?,?,?)',
                 [(d['id'], d['nombre'], d['especialidad']) for d in datos['doctores']])
+            con.executescript(''' 
+                CREATE TABLE IF NOT EXISTS especialidades_hospital (
+                    nombre TEXT PRIMARY KEY
+                );
+                CREATE TABLE IF NOT EXISTS doctor_especialidades (
+                    doctor_id TEXT NOT NULL REFERENCES doctores(id),
+                    especialidad TEXT NOT NULL,
+                    PRIMARY KEY(doctor_id, especialidad)
+                );
+            ''')
+            con.executemany('INSERT OR IGNORE INTO especialidades_hospital(nombre) VALUES (?)',
+                            [(e,) for e in ESPECIALIDADES_HOSPITAL])
+            # Compatibilidad con médicos existentes: conserva especialidades históricas,
+            # incluso si no están habilitadas para nuevos registros.
+            for doctor_id, especialidad in con.execute('SELECT id,especialidad FROM doctores').fetchall():
+                canonical = normalizar(especialidad) or especialidad
+                con.execute('INSERT OR IGNORE INTO doctor_especialidades(doctor_id,especialidad) VALUES (?,?)',
+                            (doctor_id, canonical))
 
     @staticmethod
     def _fecha(valor):
@@ -159,7 +203,7 @@ class HospitalService:
         return dict(row) if row else None
 
     def listar_citas(self, fecha=None, doctor_id=None):
-        sql = '''SELECT c.id,c.fecha,c.inicio,c.duracion,c.estado,c.doctor_id,
+        sql = '''SELECT c.id,c.fecha,c.inicio,c.duracion,c.estado,c.especialidad,c.doctor_id,
                         d.nombre AS doctor_nombre, p.id AS paciente_id,
                         p.nombre AS paciente_nombre, p.telefono AS paciente_telefono
                  FROM citas c JOIN doctores d ON d.id=c.doctor_id
@@ -184,20 +228,54 @@ class HospitalService:
             raise ReglaNegocioError('La cita ya está cancelada')
         return row
 
-    def registrar_doctor(self, doctor_id, nombre, especialidad):
+    def listar_especialidades(self):
+        with self._conexion() as con:
+            return [r['nombre'] for r in con.execute(
+                'SELECT nombre FROM especialidades_hospital ORDER BY nombre')]
+
+    @staticmethod
+    def _especialidades_doctor(con, doctor_id):
+        return [r['especialidad'] for r in con.execute(
+            'SELECT especialidad FROM doctor_especialidades WHERE doctor_id=? ORDER BY especialidad',
+            (doctor_id,))]
+
+    def registrar_doctor(self, doctor_id, nombre, especialidad=None, especialidades=None):
         doctor_id = str(doctor_id or '').strip().upper()
         nombre = str(nombre or '').strip()
-        especialidad = str(especialidad or '').strip()
+        values = especialidades if especialidades is not None else [especialidad]
+        if not isinstance(values, list) or not values or len(values) > len(ESPECIALIDADES_HOSPITAL):
+            raise ReglaNegocioError('Selecciona una o más especialidades del hospital')
+        selected=[]
+        for item in values:
+            canonical=normalizar(item)
+            if canonical is None:
+                raise ReglaNegocioError(f'Especialidad no autorizada por el hospital: {item}')
+            if canonical in selected:
+                raise ReglaNegocioError('No repitas especialidades para el mismo médico')
+            selected.append(canonical)
         if not (3 <= len(doctor_id) <= 12) or not doctor_id.isalnum():
             raise ReglaNegocioError('ID del médico: 3-12 letras o números')
-        if not (3 <= len(nombre) <= 120) or not (3 <= len(especialidad) <= 100):
-            raise ReglaNegocioError('Nombre y especialidad deben tener al menos 3 caracteres')
+        if not (3 <= len(nombre) <= 120):
+            raise ReglaNegocioError('Nombre del médico: 3-120 caracteres')
         with self._conexion() as con:
+            con.execute('BEGIN IMMEDIATE')
             try:
-                con.execute('INSERT INTO doctores(id,nombre,especialidad) VALUES (?,?,?)', (doctor_id, nombre, especialidad))
+                permitidas={r['nombre'] for r in con.execute('SELECT nombre FROM especialidades_hospital')}
+                if not set(selected).issubset(permitidas):
+                    raise ReglaNegocioError('El hospital no ofrece todas las especialidades solicitadas')
+                con.execute('INSERT INTO doctores(id,nombre,especialidad) VALUES (?,?,?)',
+                            (doctor_id, nombre, selected[0]))
+                con.executemany('INSERT INTO doctor_especialidades(doctor_id,especialidad) VALUES (?,?)',
+                                [(doctor_id, spec) for spec in selected])
+                con.execute('COMMIT')
             except sqlite3.IntegrityError as exc:
+                con.execute('ROLLBACK')
                 raise ReglaNegocioError('Ya existe un médico con ese ID') from exc
-        return {'ok': True, 'doctor': asdict(Doctor(doctor_id, nombre, especialidad))}
+            except Exception:
+                con.execute('ROLLBACK')
+                raise
+        return {'ok':True,'doctor':dict(id=doctor_id,nombre=nombre,
+                                       especialidad=selected[0],especialidades=selected)}
 
     def resumen(self):
         with self._conexion() as con:
@@ -206,7 +284,7 @@ class HospitalService:
                     'citas_programadas': con.execute("SELECT COUNT(*) FROM citas WHERE estado='programada'").fetchone()[0],
                     'citas_canceladas': con.execute("SELECT COUNT(*) FROM citas WHERE estado='cancelada'").fetchone()[0]}
 
-    def agendar(self, doctor_id, fecha, inicio, duracion, paciente_nombre='', paciente_telefono='', paciente_id=None, paciente_correo=''):
+    def agendar(self, doctor_id, fecha, inicio, duracion, paciente_nombre='', paciente_telefono='', paciente_id=None, paciente_correo='', especialidad=None):
         fecha = self._fecha(fecha)
         inicio = self._entero(inicio, 'Inicio')
         duracion = self._entero(duracion, 'Duración')

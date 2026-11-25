@@ -10,7 +10,7 @@ El sistema se ejecuta localmente con Python 3.10 o superior. Usa SQLite para con
 2. Ejecutar `python app.py` (en Windows también funciona `INICIAR.bat`).
 3. Abrir la dirección de la terminal, normalmente `http://127.0.0.1:8000`.
 
-No es necesario instalar Flask ni paquetes adicionales. **No abrir `frontend/mvp.html` directamente**: las operaciones necesitan el servidor Python.
+En el modo SQLite de desarrollo no es necesario instalar Flask ni paquetes adicionales. Para SQL Server sí se necesita `pyodbc` y ODBC 18. **No abrir `frontend/mvp.html` directamente**: las operaciones necesitan el servidor Python.
 
 ## Cuentas iniciales
 
@@ -74,7 +74,7 @@ El paciente debe tener un correo registrado. Si SMTP no está configurado, la no
 python -m unittest discover -s tests -v
 ```
 
-Los datos se guardan en `data/hospital.sqlite3`. Para empezar desde cero, cerrar Python, borrar ese archivo y ejecutar nuevamente `python app.py`. **Esto borra todas las citas, pacientes y cuentas registradas durante la práctica.**
+En modo de desarrollo, sin configurar SQL Server, los datos se guardan en `data/hospital.sqlite3`. Haz un respaldo antes de migrar. **No borres ese archivo** hasta verificar la migración y el funcionamiento contra SQL Server.
 
 ## Privacidad
 
@@ -86,7 +86,7 @@ En Windows, abre esta carpeta y ejecuta `SUBIR_GITHUB.bat`. Necesitas Git instal
 
 ## Directorio y citas por reagendar
 
-El perfil `consulta` corresponde al personal de coordinación: puede ver un directorio de médicos (nombre, especialidad, estado y números de citas) y consultar disponibilidad, pero no puede ver información personal de pacientes ni modificar citas.
+El directorio de médicos se consulta desde **Administración** y **Recepción**, sin revelar información personal de pacientes. No existe el rol `personal_autorizado`.
 
 Cuando administración da de baja a un médico, las citas futuras pasan a **Pendiente de reagendar**, sin perder el historial. Recepción o administración puede pulsar **Reagendar** en la agenda y elegir otro médico y horario libre. El folio y paciente se conservan. La cuenta del médico dado de baja queda inactiva hasta una eventual reactivación.
 
@@ -97,7 +97,7 @@ La primera ejecución con una base antigua actualiza el esquema de `citas` para 
 - **Doctor:** muestra exclusivamente las citas vinculadas al consultorio de su cuenta. No se muestran controles para consultar disponibilidad ni registrar ausencias.
 - **Paciente:** abre un calendario mensual con las citas propias, la hora y el médico que atenderá. No puede consultar las citas de otros pacientes.
 - **Recepción y administración:** mantienen la búsqueda y la gestión de citas y médicos.
-- **Personal autorizado:** conserva su vista de consulta del directorio médico.
+- **No existe** un quinto perfil: Personal autorizado se retiró del sistema.
 
 Cuentas de médicos de ejemplo: `doctora` (MED001), `doctor_carlos` (MED002), `doctora_sofia` (MED003). Las tres usan `Demo2026!`. Al iniciar el servidor, las dos cuentas nuevas también se incorporan a una base SQLite que ya existiera, sin eliminar datos previos.
 
@@ -133,3 +133,15 @@ Las instalaciones anteriores se ajustan al iniciar, sin borrar la base de datos.
 **Antes de actualizar:** respalda `data/hospital.sqlite3`, cierra el servidor,
 actualiza la rama, inicia nuevamente `python app.py` y recarga el navegador
 con Ctrl+F5.
+
+## Catálogo de especialidades y asignación
+
+El alta de médicos tiene un **catálogo cerrado de especialidades** ofrecidas por este hospital de demostración. Se muestra un selector para la especialidad principal y un botón **Añadir especialidad** que permite agregar tantas especialidades secundarias distintas como ofrezca el hospital. El servidor rechaza especialidades ajenas al catálogo (por ejemplo, fisioterapia) aunque la petición se envíe directamente a la API. El listado se mantiene en `src/especialidades.py` y en la tabla `especialidades_hospital`.
+
+Cada cita conserva la especialidad que solicitó el paciente, independientemente de que el médico tenga varias. Al reprogramar, el selector muestra únicamente médicos activos con esa especialidad; el servidor vuelve a validarlo para impedir cambios incompatibles. Ejemplo: una consulta de neurocirugía puede trasladarse entre médicos que ofrecen neurocirugía, pero no a uno que solo ofrece dermatología.
+
+## SQL Server externo (migración segura)
+
+Se añadió un backend configurable por `HOSPITAL_DB_BACKEND=sqlserver`, un esquema T-SQL, conexión a SQL Server vía ODBC 18 y un migrador que copia y verifica el contenido íntegro de todas las tablas. Lee **`sqlserver/INSTRUCCIONES.md`** antes de activarlo. La instalación de SQL Server, el driver y las credenciales son independientes de GitHub. Es necesaria una instancia SQL Server real para ejecutar y verificar la migración.
+
+**No borres el archivo SQLite hasta que el SQL Server externo esté conectado y se hayan ejecutado las pruebas funcionales contra él.** No se automatiza el borrado de la base original. Si se selecciona SQL Server y no está configurado, el servidor falla con un mensaje claro en lugar de continuar inadvertidamente con SQLite.

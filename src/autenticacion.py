@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .mvp import ReglaNegocioError
+from . import sqlserver_backend as sqlserver
 
 ROLES = ('administrador', 'doctor', 'paciente', 'recepcion')
 SESION_SEGUNDOS = 60 * 60 * 2
@@ -49,6 +50,8 @@ class AutenticacionService:
         self._inicializar()
 
     def _con(self):
+        if sqlserver.activado():
+            return sqlserver.conectar()
         con = sqlite3.connect(self.db_path, timeout=10)
         con.row_factory = sqlite3.Row
         con.execute('PRAGMA foreign_keys = ON')
@@ -60,7 +63,8 @@ class AutenticacionService:
 
     def _inicializar(self):
         with self._con() as con:
-            con.execute('''CREATE TABLE IF NOT EXISTS usuarios (
+            if not sqlserver.activado():
+                con.execute('''CREATE TABLE IF NOT EXISTS usuarios (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 usuario TEXT NOT NULL UNIQUE,
                 nombre TEXT NOT NULL,

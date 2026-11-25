@@ -26,6 +26,11 @@ class BajaYDirectorioTests(unittest.TestCase):
         self.svc = HospitalService(self.path, DATA)
         self.auth = AutenticacionService(self.path)
         self.fecha = (self.svc.hoy() + timedelta(days=3)).isoformat()
+        # Estas pruebas ejercitan baja/ocupación; el destino comparte también
+        # la especialidad de la cita. La incompatibilidad se prueba por separado.
+        with self.svc._conexion() as con:
+            con.execute('INSERT OR IGNORE INTO doctor_especialidades(doctor_id,especialidad) VALUES (?,?)',
+                        ('MED002','Medicina general'))
 
     def test_baja_deja_pendientes_y_conserva_folio_y_paciente(self):
         cita = self.svc.agendar('MED001', self.fecha, 540, 30, paciente_id=1)

@@ -22,3 +22,5 @@
 .doctor-login label{margin:9px 0 5px}
 .patient-key{font-size:13px;font-weight:750;color:#176457;border:1px solid #c7e7d9;background:#ecf8f3;padding:7px 10px;border-radius:9px;margin:0}
 .calendar-appointment.is-pending{background:#fff3db;color:#926c0a}
+
+.specialty-line{display:flex;gap:8px;margin-top:7px}.specialty-line select{flex:1}.specialty-line .button{white-space:nowrap}

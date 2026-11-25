@@ -29,3 +29,9 @@ CORRECCIÓN DEL 18 DE NOVIEMBRE DE 2026
 
 CAMBIO DE PERFILES (NOVIEMBRE)
 Se retiró el rol Personal autorizado del inicio de sesión, la creación de usuarios y las autorizaciones del servidor. La cuenta anterior se elimina al iniciar, conservando médicos, pacientes y citas.
+
+18/11/2026 – Especialidades y base de datos externa
+- Alta de médicos con catálogo cerrado y múltiples especialidades.
+- Cada cita conserva su especialidad clínica; la reprogramación exige médicos compatibles.
+- Se ofrecen scripts de creación y migración verificable a SQL Server, con conexión ODBC configurable.
+- SQLite se mantiene como respaldo hasta conectar, migrar y verificar un servidor SQL real.

@@ -11,11 +11,23 @@ from dataclasses import asdict
 
 from .gestor_citas import Cita, HORARIO_LABORAL, formatear_hora
 from .mvp import HospitalService as BaseHospital, Doctor, ReglaNegocioError
+from .especialidades import normalizar
+from . import sqlserver_backend as sqlserver
 
 
 class HospitalService(BaseHospital):
     def _inicializar(self):
         super()._inicializar()
+        if sqlserver.activado():
+            # Esquema externo creado en BaseHospital. Conservar folios y cuentas.
+            with self._conexion() as con:
+                con.execute("""UPDATE citas SET estado='pendiente_reagendar'
+                    WHERE estado='cancelada' AND cancelacion_motivo='Baja del médico' AND fecha>=?""",
+                    (self.hoy().isoformat(),))
+                con.execute("""UPDATE citas SET estado='pendiente_reagendar',cancelacion_motivo='Baja del médico'
+                    WHERE estado='programada' AND fecha>=? AND doctor_id IN
+                    (SELECT id FROM doctores WHERE activo=0)""",(self.hoy().isoformat(),))
+            return
         with self._conexion() as con:
             fields = {row['name'] for row in con.execute('PRAGMA table_info(pacientes)')}
             if 'correo' not in fields:
@@ -23,6 +35,13 @@ class HospitalService(BaseHospital):
             fields = {row['name'] for row in con.execute('PRAGMA table_info(citas)')}
             if 'cancelacion_motivo' not in fields:
                 con.execute("ALTER TABLE citas ADD COLUMN cancelacion_motivo TEXT NOT NULL DEFAULT ''")
+            if 'especialidad' not in fields:
+                con.execute("ALTER TABLE citas ADD COLUMN especialidad TEXT NOT NULL DEFAULT ''")
+            # No recalcular la especialidad cuando una cita cambia de médico.
+            # La especialidad que motivó la consulta pertenece a la cita.
+            con.execute('''UPDATE citas SET especialidad=COALESCE(
+                (SELECT d.especialidad FROM doctores d WHERE d.id=citas.doctor_id),'')
+                WHERE especialidad='' ''')
             fields = {row['name'] for row in con.execute('PRAGMA table_info(doctores)')}
             if 'activo' not in fields:
                 con.execute('ALTER TABLE doctores ADD COLUMN activo INTEGER NOT NULL DEFAULT 1')
@@ -70,12 +89,13 @@ class HospitalService(BaseHospital):
                         fecha TEXT NOT NULL, inicio INTEGER NOT NULL, duracion INTEGER NOT NULL,
                         estado TEXT NOT NULL DEFAULT 'programada'
                           CHECK(estado IN ('programada','cancelada','pendiente_reagendar')),
-                        cancelacion_motivo TEXT NOT NULL DEFAULT ''
+                        cancelacion_motivo TEXT NOT NULL DEFAULT '',
+                        especialidad TEXT NOT NULL DEFAULT ''
                     )''')
                     conn.execute('''INSERT INTO citas_upgrade
-                        (id,doctor_id,paciente_id,fecha,inicio,duracion,estado,cancelacion_motivo)
+                        (id,doctor_id,paciente_id,fecha,inicio,duracion,estado,cancelacion_motivo,especialidad)
                         SELECT id,doctor_id,paciente_id,fecha,inicio,duracion,estado,
-                               cancelacion_motivo FROM citas''')
+                               cancelacion_motivo,especialidad FROM citas''')
                     conn.execute('DROP TABLE citas')
                     conn.execute('ALTER TABLE citas_upgrade RENAME TO citas')
                     conn.execute('CREATE INDEX idx_citas_agenda ON citas(doctor_id,fecha,estado,inicio)')
@@ -130,7 +150,7 @@ class HospitalService(BaseHospital):
 
     def listar_doctores(self):
         with self._conexion() as con:
-            return [dict(r) for r in con.execute('SELECT id,nombre,especialidad FROM doctores WHERE activo=1 ORDER BY id')]
+            return [dict(r, especialidades=self._especialidades_doctor(con,r['id'])) for r in con.execute('SELECT id,nombre,especialidad FROM doctores WHERE activo=1 ORDER BY id')]
 
     def _doctor_activo(self, doctor_id):
         with self._conexion() as con:
@@ -139,13 +159,13 @@ class HospitalService(BaseHospital):
 
     def listar_doctores_todos(self):
         with self._conexion() as con:
-            return [dict(row) for row in con.execute('''SELECT d.id,d.nombre,d.especialidad,d.activo,
+            return [dict(row,especialidades=self._especialidades_doctor(con,row['id'])) for row in con.execute('''SELECT d.id,d.nombre,d.especialidad,d.activo,
                 (SELECT COUNT(*) FROM citas c WHERE c.doctor_id=d.id AND c.estado='programada') citas_programadas
                 FROM doctores d ORDER BY d.id''')]
 
     def directorio_medicos(self):
         with self._conexion() as con:
-            return [dict(r) for r in con.execute('''                SELECT d.id,d.nombre,d.especialidad,d.activo,
+            return [dict(r,especialidades=self._especialidades_doctor(con,r['id'])) for r in con.execute('''                SELECT d.id,d.nombre,d.especialidad,d.activo,
                     (SELECT COUNT(*) FROM citas c WHERE c.doctor_id=d.id
                         AND c.estado='programada') AS citas_programadas,
                     (SELECT COUNT(*) FROM citas c WHERE c.doctor_id=d.id
@@ -184,8 +204,17 @@ class HospitalService(BaseHospital):
                                 f'Cita #{r["id"]} pendiente de reagendar: el médico dejó de prestar servicio.')
                 con.execute('UPDATE doctores SET activo=0 WHERE id=?',(doctor_id,))
                 # Guardar las cuentas activas suspendidas por esta baja, para restaurar solo esas cuentas.
-                con.execute('''INSERT OR IGNORE INTO suspensiones_doctor(doctor_id,usuario_id)
-                    SELECT ?,id FROM usuarios WHERE doctor_id=? AND activo=1''',(doctor_id,doctor_id))
+                if sqlserver.activado():
+                    for user in con.execute('SELECT id FROM usuarios WHERE doctor_id=? AND activo=1',
+                                            (doctor_id,)).fetchall():
+                        uid=user['id']
+                        con.execute('''IF NOT EXISTS (SELECT 1 FROM suspensiones_doctor
+                            WHERE doctor_id=? AND usuario_id=?)
+                            INSERT INTO suspensiones_doctor(doctor_id,usuario_id) VALUES (?,?)''',
+                            (doctor_id,uid,doctor_id,uid))
+                else:
+                    con.execute('''INSERT OR IGNORE INTO suspensiones_doctor(doctor_id,usuario_id)
+                        SELECT ?,id FROM usuarios WHERE doctor_id=? AND activo=1''',(doctor_id,doctor_id))
                 con.execute('UPDATE usuarios SET activo=0 WHERE doctor_id=?',(doctor_id,))
                 con.execute('COMMIT')
             except Exception:
@@ -339,7 +368,7 @@ class HospitalService(BaseHospital):
         return value
 
     def agendar(self, doctor_id, fecha, inicio, duracion, paciente_nombre='',
-                paciente_telefono='', paciente_id=None, paciente_correo=''):
+                paciente_telefono='', paciente_id=None, paciente_correo='', especialidad=None):
         fecha=self._fecha(fecha)
         inicio=self._entero(inicio,'Inicio')
         self._no_pasado(fecha, inicio)
@@ -353,6 +382,15 @@ class HospitalService(BaseHospital):
             con.execute('BEGIN IMMEDIATE')
             try:
                 self._doctor_existe(con, doctor_id)
+                especialidades=self._especialidades_doctor(con,doctor_id)
+                if especialidad:
+                    especialidad=normalizar(especialidad) or str(especialidad).strip()
+                else:
+                    # Selección principal por defecto, compatible con clientes anteriores.
+                    especialidad=con.execute('SELECT especialidad FROM doctores WHERE id=?',(doctor_id,)).fetchone()['especialidad']
+                    especialidad=normalizar(especialidad) or especialidad
+                if especialidad not in especialidades:
+                    raise ReglaNegocioError('El médico no atiende esa especialidad')
                 self._comprobar_asistencia(con,doctor_id,fecha)
                 if self._conflicto(self._ocupadas(con,doctor_id,fecha),inicio,duracion):
                     raise ReglaNegocioError('Ese horario ya está ocupado')
@@ -366,8 +404,8 @@ class HospitalService(BaseHospital):
                     nombre,telefono,correo=patient['nombre'],patient['telefono'],patient['correo']
                 self._comprobar_paciente_libre(con,paciente_id,fecha,inicio,duracion)
                 medico=con.execute('SELECT nombre FROM doctores WHERE id=?',(doctor_id,)).fetchone()['nombre']
-                cita_id=con.execute('INSERT INTO citas(doctor_id,paciente_id,fecha,inicio,duracion) VALUES (?,?,?,?,?)',
-                                    (doctor_id,paciente_id,fecha,inicio,duracion)).lastrowid
+                cita_id=con.execute('INSERT INTO citas(doctor_id,paciente_id,fecha,inicio,duracion,especialidad) VALUES (?,?,?,?,?,?)',
+                                    (doctor_id,paciente_id,fecha,inicio,duracion,especialidad)).lastrowid
                 mensaje=self._texto_confirmacion(cita_id,nombre,medico,fecha,inicio,duracion)
                 self._avisar(con,paciente_id,cita_id,'confirmacion',mensaje)
                 con.execute('COMMIT')
@@ -378,6 +416,18 @@ class HospitalService(BaseHospital):
         return {'ok':True,'id':cita_id,'paciente_id':paciente_id,
                 'clave_paciente':self.clave_paciente(paciente_id),'estado':'programada',
                 'confirmacion':mensaje,'correo':envio}
+
+    def medicos_para_reagendar(self, cita_id):
+        cita_id=self._entero(cita_id,'ID de cita')
+        with self._conexion() as con:
+            cita=con.execute('SELECT especialidad FROM citas WHERE id=?',(cita_id,)).fetchone()
+            if cita is None:
+                raise ReglaNegocioError('Cita no encontrada')
+            especialidad=normalizar(cita['especialidad']) or cita['especialidad']
+            medicos=[dict(r,especialidades=self._especialidades_doctor(con,r['id']))
+                     for r in con.execute('SELECT id,nombre,especialidad FROM doctores WHERE activo=1 ORDER BY nombre')
+                     if especialidad in self._especialidades_doctor(con,r['id'])]
+            return {'ok':True,'especialidad':especialidad,'doctores':medicos}
 
     def reprogramar(self, cita_id, doctor_id, fecha, inicio, duracion):
         cita_id=self._entero(cita_id,'ID de cita')
@@ -395,6 +445,11 @@ class HospitalService(BaseHospital):
                 if cita['estado'] not in ('programada','pendiente_reagendar'):
                     raise ReglaNegocioError('La cita ya está cancelada')
                 self._doctor_existe(con,doctor_id)
+                # Impedir enviar un paciente con dermatología a cardiología,
+                # incluso si la API se invoca sin pasar por los filtros del navegador.
+                especialidad=normalizar(cita['especialidad']) or cita['especialidad']
+                if especialidad not in self._especialidades_doctor(con,doctor_id):
+                    raise ReglaNegocioError('El médico destino no atiende la especialidad de esta cita')
                 self._comprobar_asistencia(con,doctor_id,fecha)
                 ocupadas=self._ocupadas(con,doctor_id,fecha,excluir_id=cita_id)
                 if self._conflicto(ocupadas,inicio,duracion):

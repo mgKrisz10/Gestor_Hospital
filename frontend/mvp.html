@@ -53,6 +53,7 @@
     <section class="workspace" id="availability-area" hidden>
       <article class="card controls"><div class="card-heading"><div><h2>Disponibilidad médica</h2></div></div>
         <label for="doctor">Médico</label><select id="doctor"><option value="">Seleccionar médico</option></select>
+        <label for="appointment-specialty">Especialidad de consulta</label><select id="appointment-specialty"></select>
         <label for="date">Fecha de la consulta</label><input id="date" type="date">
         <label for="duration">Duración</label><select id="duration"><option value="15">15 minutos</option><option value="30" selected>30 minutos</option><option value="45">45 minutos</option><option value="60">60 minutos</option></select>
         <button id="search" type="button" class="button primary full">Buscar espacios libres <span>→</span></button>
@@ -144,7 +145,9 @@
       <article class="card"><h2>Registrar médico</h2>
         <form id="new-doctor-form"><label for="new-id">ID del médico</label><input id="new-id" required maxlength="12" placeholder="MED004">
           <label for="new-name">Nombre</label><input id="new-name" required maxlength="120" placeholder="Dr. Nombre Apellido">
-          <label for="new-specialty">Especialidad</label><input id="new-specialty" required maxlength="100" placeholder="Dermatología">
+          <label for="new-specialty">Especialidad principal</label><select id="new-specialty" required></select>
+          <label>Otras especialidades (opcional)<div id="extra-specialties"></div></label>
+          <button type="button" class="button ghost" id="add-specialty">+ Añadir especialidad</button>
           <button type="submit" class="button primary full">Agregar al catálogo</button></form>
       </article>
     </section>

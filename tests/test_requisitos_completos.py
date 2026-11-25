@@ -64,6 +64,10 @@ class RequisitosCompletosTests(unittest.TestCase):
         self.assertEqual(self.call('/api/mvp/citas','recepcion',{**c,'doctor_id':'MED002'})[0],201)
 
     def test_r08_reprogramacion_y_conflicto(self):
+        # Prueba de conflicto: habilitar compatibilidad entre las especialidades.
+        with self.svc._conexion() as con:
+            con.execute('INSERT OR IGNORE INTO doctor_especialidades(doctor_id,especialidad) VALUES (?,?)',
+                        ('MED002','Medicina general'))
         a=self.svc.agendar('MED001',FUTURE,480,30,'Alma Sánchez')
         b=self.svc.agendar('MED001',FUTURE,540,30,'Bea Solís')
         url=f"/api/mvp/citas/{a['id']}/reprogramar"
